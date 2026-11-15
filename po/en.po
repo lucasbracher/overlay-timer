@@ -1,0 +1,427 @@
+# English translations for overlay-timer package.
+# Copyright (C) 2026 overlay-timer
+# This file is distributed under the same license as the overlay-timer package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: overlay-timer 0.1.0\n"
+"Report-Msgid-Bugs-To: lucas@example.com\n"
+"POT-Creation-Date: 2026-11-14 19:20-0300\n"
+"PO-Revision-Date: 2026-11-14 19:20-0300\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=ASCII\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/audio.c:163
+msgid "audio: no default libao driver; sound disabled"
+msgstr "audio: no default libao driver; sound disabled"
+
+#: src/audio.c:175
+msgid "audio: could not start playback thread"
+msgstr "audio: could not start playback thread"
+
+#: src/backend.c:44
+#, c-format
+msgid ""
+"warning: Wayland session detected but Wayland backend not built; trying X11 "
+"(XWayland).\n"
+msgstr ""
+"warning: Wayland session detected but Wayland backend not built; trying X11 "
+"(XWayland).\n"
+
+#: src/backend.c:48
+msgid "Wayland backend not built"
+msgstr "Wayland backend not built"
+
+#: src/backend.c:58
+msgid "X11 backend not built"
+msgstr "X11 backend not built"
+
+#: src/backend.c:63
+msgid "no suitable backend available"
+msgstr "no suitable backend available"
+
+#: src/backend_wayland.c:296
+msgid "cannot connect to Wayland display"
+msgstr "cannot connect to Wayland display"
+
+#: src/backend_wayland.c:307
+msgid "Wayland compositor missing wl_compositor/wl_shm"
+msgstr "Wayland compositor missing wl_compositor/wl_shm"
+
+#: src/backend_wayland.c:312
+msgid ""
+"compositor does not support wlr-layer-shell (e.g. GNOME/Mutter): Wayland "
+"overlay unsupported"
+msgstr ""
+"compositor does not support wlr-layer-shell (e.g. GNOME/Mutter): Wayland "
+"overlay unsupported"
+
+#: src/backend_wayland.c:321 src/backend_x11.c:221
+#, c-format
+msgid "warning: screen index %d out of range (have %d)\n"
+msgstr "warning: screen index %d out of range (have %d)\n"
+
+#: src/backend_wayland.c:361 src/backend_x11.c:258
+msgid "no valid screen to display on"
+msgstr "no valid screen to display on"
+
+#: src/backend_x11.c:189
+msgid "cannot connect to X server (is DISPLAY set?)"
+msgstr "cannot connect to X server (is DISPLAY set?)"
+
+#: src/backend_x11.c:201
+msgid "no 32-bit ARGB visual found (need a compositor)"
+msgstr "no 32-bit ARGB visual found (need a compositor)"
+
+#: src/cli.c:77
+#, c-format
+msgid "Usage: %s [options]\n"
+msgstr "Usage: %s [options]\n"
+
+#: src/cli.c:79
+#, c-format
+msgid ""
+"\n"
+"Translucent, click-through countdown/pomodoro overlay timer.\n"
+"\n"
+"Time / mode:\n"
+"  -t, --time <MM:SS|HH:MM:SS>  start a countdown\n"
+"      --pomodoro <N>           start N pomodoros\n"
+"      --format <hhmmss|mmss>   display format (actual time takes "
+"precedence)\n"
+"\n"
+"Appearance:\n"
+"  -c, --color <color>          text color (name or #RRGGBB)\n"
+"      --alpha <0-100>          visibility (0=transparent, 100=opaque)\n"
+"      --size <0-100>           text size as %% of the screen's smaller side\n"
+"      --font <family>          font family\n"
+"      --corner <tl|tr|bl|br>   corner\n"
+"      --screen <idx[,idx...]>  screen index(es)\n"
+"\n"
+"Pomodoro:\n"
+"      --pomodoro-minutes <m>\n"
+"      --break-minutes <m>\n"
+"      --long-break-minutes <m>\n"
+"      --long-break-every <N>   0 = no long break (default)\n"
+"      --pomodoro-color <color>\n"
+"      --break-color <color>\n"
+"\n"
+"Control (requires a running timer):\n"
+"      --pause | --resume | --stop\n"
+"\n"
+"Audio:\n"
+"      --sounds-dir <path>      directory with .wav files\n"
+"      --sound | --no-sound     enable/disable sound\n"
+"\n"
+"Window system:\n"
+"      --x11 | --wayland\n"
+"\n"
+"Config:\n"
+"      --config <path>          use an alternate config file\n"
+"      --save                   merge current options into the config file\n"
+"\n"
+"General:\n"
+"  -h, --help\n"
+"  -V, --version\n"
+msgstr ""
+"\n"
+"Translucent, click-through countdown/pomodoro overlay timer.\n"
+"\n"
+"Time / mode:\n"
+"  -t, --time <MM:SS|HH:MM:SS>  start a countdown\n"
+"      --pomodoro <N>           start N pomodoros\n"
+"      --format <hhmmss|mmss>   display format (actual time takes "
+"precedence)\n"
+"\n"
+"Appearance:\n"
+"  -c, --color <color>          text color (name or #RRGGBB)\n"
+"      --alpha <0-100>          visibility (0=transparent, 100=opaque)\n"
+"      --size <0-100>           text size as %% of the screen's smaller side\n"
+"      --font <family>          font family\n"
+"      --corner <tl|tr|bl|br>   corner\n"
+"      --screen <idx[,idx...]>  screen index(es)\n"
+"\n"
+"Pomodoro:\n"
+"      --pomodoro-minutes <m>\n"
+"      --break-minutes <m>\n"
+"      --long-break-minutes <m>\n"
+"      --long-break-every <N>   0 = no long break (default)\n"
+"      --pomodoro-color <color>\n"
+"      --break-color <color>\n"
+"\n"
+"Control (requires a running timer):\n"
+"      --pause | --resume | --stop\n"
+"\n"
+"Audio:\n"
+"      --sounds-dir <path>      directory with .wav files\n"
+"      --sound | --no-sound     enable/disable sound\n"
+"\n"
+"Window system:\n"
+"      --x11 | --wayland\n"
+"\n"
+"Config:\n"
+"      --config <path>          use an alternate config file\n"
+"      --save                   merge current options into the config file\n"
+"\n"
+"General:\n"
+"  -h, --help\n"
+"  -V, --version\n"
+
+#: src/cli.c:142
+#, c-format
+msgid "error: invalid time: '%s'\n"
+msgstr "error: invalid time: '%s'\n"
+
+#: src/cli.c:153
+#, c-format
+msgid "error: invalid pomodoro count: '%s'\n"
+msgstr "error: invalid pomodoro count: '%s'\n"
+
+#: src/cli.c:166
+#, c-format
+msgid "error: alpha must be 0-100\n"
+msgstr "error: alpha must be 0-100\n"
+
+#: src/cli.c:171
+#, c-format
+msgid "error: size must be 0-100\n"
+msgstr "error: size must be 0-100\n"
+
+#: src/cli.c:179
+#, c-format
+msgid "error: corner must be tl|tr|bl|br\n"
+msgstr "error: corner must be tl|tr|bl|br\n"
+
+#: src/cli.c:185
+#, c-format
+msgid "error: invalid screen list: '%s'\n"
+msgstr "error: invalid screen list: '%s'\n"
+
+#: src/cli.c:192
+#, c-format
+msgid "error: format must be hhmmss|mmss\n"
+msgstr "error: format must be hhmmss|mmss\n"
+
+#: src/cli.c:197
+#, c-format
+msgid "error: invalid pomodoro-minutes\n"
+msgstr "error: invalid pomodoro-minutes\n"
+
+#: src/cli.c:202
+#, c-format
+msgid "error: invalid break-minutes\n"
+msgstr "error: invalid break-minutes\n"
+
+#: src/cli.c:207
+#, c-format
+msgid "error: invalid long-break-minutes\n"
+msgstr "error: invalid long-break-minutes\n"
+
+#: src/cli.c:212
+#, c-format
+msgid "error: invalid long-break-every\n"
+msgstr "error: invalid long-break-every\n"
+
+#: src/cli.c:253
+#, c-format
+msgid "error: unexpected argument: '%s'\n"
+msgstr "error: unexpected argument: '%s'\n"
+
+#: src/config.c:196
+#, c-format
+msgid "%s:%d: invalid value for '%s': '%s'"
+msgstr "%s:%d: invalid value for '%s': '%s'"
+
+#: src/config.c:259
+#, c-format
+msgid "%s:%d: unknown key '%s' in section '[%s]'"
+msgstr "%s:%d: unknown key '%s' in section '[%s]'"
+
+#: src/config.c:280
+#, c-format
+msgid "%s:%d: malformed section"
+msgstr "%s:%d: malformed section"
+
+#: src/config.c:287
+#, c-format
+msgid "%s:%d: missing '='"
+msgstr "%s:%d: missing '='"
+
+#: src/config.c:371
+#, c-format
+msgid "created default config at %s"
+msgstr "created default config at %s"
+
+#: src/daemon.c:83
+#, c-format
+msgid "reconfigure: %d applied, %d invalid"
+msgstr "reconfigure: %d applied, %d invalid"
+
+#: src/daemon.c:99
+msgid "paused"
+msgstr "paused"
+
+#: src/daemon.c:100
+msgid "resumed"
+msgstr "resumed"
+
+#: src/daemon.c:101
+msgid "stop requested via IPC"
+msgstr "stop requested via IPC"
+
+#: src/daemon.c:126
+#, c-format
+msgid "daemon: starting %d pomodoro(s)"
+msgstr "daemon: starting %d pomodoro(s)"
+
+#: src/daemon.c:129
+#, c-format
+msgid "daemon: starting countdown of %ld s"
+msgstr "daemon: starting countdown of %ld s"
+
+#: src/daemon.c:134
+msgid "daemon: could not start IPC server"
+msgstr "daemon: could not start IPC server"
+
+#: src/daemon.c:142
+#, c-format
+msgid "daemon: backend init failed: %s"
+msgstr "daemon: backend init failed: %s"
+
+#: src/daemon.c:148
+#, c-format
+msgid "daemon: backend '%s' ready (%d screen(s))"
+msgstr "daemon: backend '%s' ready (%d screen(s))"
+
+#: src/daemon.c:188
+#, c-format
+msgid "poll failed: %s"
+msgstr "poll failed: %s"
+
+#: src/daemon.c:221
+msgid "pomodoro ended -> break"
+msgstr "pomodoro ended -> break"
+
+#: src/daemon.c:225
+msgid "break ended -> pomodoro"
+msgstr "break ended -> pomodoro"
+
+#: src/daemon.c:229
+msgid "timer finished"
+msgstr "timer finished"
+
+#: src/daemon.c:254
+#, c-format
+msgid "daemon: received signal %d, shutting down"
+msgstr "daemon: received signal %d, shutting down"
+
+#: src/ipc.c:44
+#, c-format
+msgid "socket path too long: %s"
+msgstr "socket path too long: %s"
+
+#: src/ipc.c:96
+#, c-format
+msgid "cannot open lockfile %s: %s"
+msgstr "cannot open lockfile %s: %s"
+
+#: src/ipc.c:104
+#, c-format
+msgid "flock failed: %s"
+msgstr "flock failed: %s"
+
+#: src/ipc.c:120
+#, c-format
+msgid "socket() failed: %s"
+msgstr "socket() failed: %s"
+
+#: src/ipc.c:128
+#, c-format
+msgid "bind() failed on %s: %s"
+msgstr "bind() failed on %s: %s"
+
+#: src/ipc.c:132
+#, c-format
+msgid "listen() failed: %s"
+msgstr "listen() failed: %s"
+
+#: src/ipc.c:161
+#, c-format
+msgid "accept() failed: %s"
+msgstr "accept() failed: %s"
+
+#: src/ipc.c:211 src/main.c:48
+#, c-format
+msgid "no running timer"
+msgstr "no running timer"
+
+#: src/ipc.c:219
+#, c-format
+msgid "write failed"
+msgstr "write failed"
+
+#: src/ipc.c:227
+#, c-format
+msgid "read failed"
+msgstr "read failed"
+
+#: src/ipc.c:241 src/ipc.c:248
+#, c-format
+msgid "fork failed: %s"
+msgstr "fork failed: %s"
+
+#: src/ipc.c:244
+#, c-format
+msgid "setsid failed: %s"
+msgstr "setsid failed: %s"
+
+#: src/main.c:48
+#, c-format
+msgid "error: %s\n"
+msgstr "error: %s\n"
+
+#: src/main.c:85
+#, c-format
+msgid "No command given. Try '%s --help'.\n"
+msgstr "No command given. Try '%s --help'.\n"
+
+#: src/main.c:101
+#, c-format
+msgid "error: no running timer to reconfigure.\n"
+msgstr "error: no running timer to reconfigure.\n"
+
+#: src/main.c:108
+#, c-format
+msgid "error: nothing to reconfigure.\n"
+msgstr "error: nothing to reconfigure.\n"
+
+#: src/main.c:115 src/main.c:133
+#, c-format
+msgid "Configuration saved to %s\n"
+msgstr "Configuration saved to %s\n"
+
+#: src/main.c:124
+#, c-format
+msgid "error: a timer is already running. Stop it first with '%s --stop'.\n"
+msgstr "error: a timer is already running. Stop it first with '%s --stop'.\n"
+
+#: src/main.c:135
+#, c-format
+msgid "warning: could not save config to %s\n"
+msgstr "warning: could not save config to %s\n"
+
+#: src/main.c:139
+#, c-format
+msgid "overlay-timer started.\n"
+msgstr "overlay-timer started.\n"
+
+#: src/main.c:144
+#, c-format
+msgid "error: failed to daemonize.\n"
+msgstr "error: failed to daemonize.\n"

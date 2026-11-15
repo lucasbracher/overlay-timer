@@ -1,0 +1,225 @@
+.\" Manual page for overlay-timer
+.TH OVERLAY\-TIMER 1 "November 2026" "overlay-timer 0.1.0" "User Commands"
+.SH NAME
+overlay\-timer \- translucent, click\-through countdown and pomodoro overlay timer
+.SH SYNOPSIS
+.B overlay\-timer
+.RB [ \-t
+.IR TIME ]
+.RB [ \-\-pomodoro
+.IR N ]
+.RI [ options ]
+.br
+.B overlay\-timer
+.RB { \-\-pause | \-\-resume | \-\-stop }
+.br
+.B overlay\-timer
+.RI [ appearance\ options ]
+.SH DESCRIPTION
+.B overlay\-timer
+draws a translucent text counter on top of all windows, without receiving
+focus or clicks (click\-through), fixed in one of the four corners of one or
+more screens. It supports a simple
+.B countdown
+mode and a
+.B pomodoro
+mode.
+.PP
+When invoked to start a timer, the process forks into the background
+(daemonizes) and returns the terminal immediately. Only a
+.B single instance
+runs at a time. Further invocations talk to the running instance over a Unix
+domain socket to reconfigure, pause, resume, stop, or move the overlay.
+.PP
+In
+.B countdown
+mode the timer counts down from a given time; upon reaching zero it blinks and
+plays a long sound. In
+.B pomodoro
+mode it runs
+.I N
+work blocks (default 25 min) separated by breaks (default 5 min, shown in
+green). The end of each work block or break plays a short beep; the last work
+block has no break after it and plays the long sound while blinking.
+.SH OPTIONS
+.SS Time / mode
+.TP
+.BR \-t ", " \-\-time " " \fITIME\fR
+Start a countdown. \fITIME\fR is \fBMM:SS\fR or \fBHH:MM:SS\fR (a bare number is
+seconds).
+.TP
+.BR \-\-pomodoro " " \fIN\fR
+Start \fIN\fR pomodoros.
+.TP
+.BR \-\-format " " \fBhhmmss\fR | \fBmmss\fR
+Display format. The actual time value takes precedence (if hours are present,
+they are shown).
+.SS Appearance
+.TP
+.BR \-c ", " \-\-color " " \fICOLOR\fR
+Text color: a known name (\fBred\fR, \fBgreen\fR, \fBblue\fR, ...) or
+\fB#RRGGBB\fR / \fB#RGB\fR.
+.TP
+.BR \-\-alpha " " \fI0\-100\fR
+Visibility of the text (0 = fully transparent, 100 = opaque).
+.TP
+.BR \-\-size " " \fI0\-100\fR
+Text size as a percentage of the screen's smaller dimension.
+.TP
+.BR \-\-font " " \fIFAMILY\fR
+Font family (fontconfig name). Empty = system default.
+.TP
+.BR \-\-corner " " \fBtl\fR | \fBtr\fR | \fBbl\fR | \fBbr\fR
+Corner: top\-left, top\-right, bottom\-left, bottom\-right.
+.TP
+.BR \-\-screen " " \fIIDX\fR[,\fIIDX\fR...]
+Screen index(es). The same timer is replicated on each chosen screen.
+.SS Pomodoro
+.TP
+.BR \-\-pomodoro\-minutes " " \fIM\fR
+Duration of each work block, in minutes (default 25).
+.TP
+.BR \-\-break\-minutes " " \fIM\fR
+Duration of the short break, in minutes (default 5).
+.TP
+.BR \-\-long\-break\-minutes " " \fIM\fR
+Duration of the long break, in minutes (default 15).
+.TP
+.BR \-\-long\-break\-every " " \fIN\fR
+Insert a long break after every \fIN\fR pomodoros. 0 disables long breaks
+(default).
+.TP
+.BR \-\-pomodoro\-color " " \fICOLOR\fR
+Text color during work blocks.
+.TP
+.BR \-\-break\-color " " \fICOLOR\fR
+Text color during breaks.
+.SS Control (requires a running timer)
+.TP
+.B \-\-pause
+Pause the running timer.
+.TP
+.B \-\-resume
+Resume the running timer.
+.TP
+.B \-\-stop
+Stop the running timer and remove the overlay.
+.SS Audio
+.TP
+.BR \-\-sounds\-dir " " \fIPATH\fR
+Directory holding the \fB.wav\fR files
+.RB ( timer_end.wav ", " pomodoro_end.wav ", " break_end.wav ).
+Missing files fall back to a synthesized triangular tone.
+.TP
+.BR \-\-sound ", " \-\-no\-sound
+Enable or disable sound.
+.SS Window system
+.TP
+.BR \-\-x11 ", " \-\-wayland
+Force the X11 or Wayland backend. By default the backend is auto\-detected from
+.BR XDG_SESSION_TYPE ", " WAYLAND_DISPLAY " and " DISPLAY .
+The Wayland backend requires the
+.B wlr\-layer\-shell
+protocol (Sway, Hyprland and other wlroots compositors). Compositors without
+it (e.g. GNOME/Mutter) are not supported and produce a clear error.
+.SS Config
+.TP
+.BR \-\-config " " \fIPATH\fR
+Use an alternate configuration file instead of the default.
+.TP
+.B \-\-save
+Merge the current options into the configuration file and write it.
+.SS General
+.TP
+.BR \-h ", " \-\-help
+Show a usage summary and exit.
+.TP
+.BR \-V ", " \-\-version
+Show the version and exit.
+.SH BEHAVIOR
+If a timer is already running, control flags
+.RB ( \-\-pause ", " \-\-resume ", " \-\-stop )
+and appearance/position overrides are sent to the running instance, which
+reconfigures itself. Attempting to start a new timer
+.RB ( \-t " or " \-\-pomodoro )
+while one is running is an error: stop the current one first with
+.BR "overlay\-timer \-\-stop" .
+.SH CONFIGURATION
+Settings are read from an INI file, by default
+.IR ~/.config/overlay\-timer/config.ini
+(or
+.IR $XDG_CONFIG_HOME/overlay\-timer/config.ini ).
+It is created with defaults on first run. Command\-line options override the
+file; use
+.B \-\-save
+to persist them. Sections and keys:
+.PP
+.RS
+.nf
+[appearance]  color, alpha, size, font
+[position]    corner, screen
+[timer]       format
+[pomodoro]    pomodoro_minutes, break_minutes, long_break_minutes,
+              long_break_every, pomodoro_color, break_color
+[audio]       sounds_dir, enable_sound
+[window]      backend
+.fi
+.RE
+.SH FILES
+.TP
+.I ~/.config/overlay\-timer/config.ini
+Configuration file.
+.TP
+.I ~/.local/share/overlay\-timer/sounds/
+Default directory for the \fB.wav\fR sound files.
+.TP
+.I $XDG_STATE_HOME/overlay\-timer/log
+Log file (defaults to \fI~/.local/state/overlay\-timer/log\fR).
+.TP
+.I $XDG_RUNTIME_DIR/overlay\-timer.sock
+Control socket for the single running instance.
+.TP
+.I $XDG_RUNTIME_DIR/overlay\-timer.lock
+Lock file enforcing a single instance.
+.SH ENVIRONMENT
+.TP
+.B XDG_SESSION_TYPE\fR, \fBWAYLAND_DISPLAY\fR, \fBDISPLAY
+Used to auto\-detect the window system backend.
+.TP
+.B XDG_CONFIG_HOME\fR, \fBXDG_DATA_HOME\fR, \fBXDG_STATE_HOME\fR, \fBXDG_RUNTIME_DIR
+Standard XDG base directories, used for config, sounds, logs and the socket.
+.TP
+.B LC_ALL\fR, \fBLANG\fR, \fBLANGUAGE
+Select the interface language (English and Brazilian Portuguese are provided).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Runtime error (e.g. no running timer, backend failure).
+.TP
+.B 2
+Invalid command line.
+.SH EXAMPLES
+.TP
+Start a 25\-minute countdown:
+.B overlay\-timer \-t 25:00
+.TP
+Run four pomodoros, green text, top\-right corner:
+.B overlay\-timer \-\-pomodoro 4 \-c green \-\-corner tr
+.TP
+Pause and later resume the running timer:
+.B overlay\-timer \-\-pause
+.br
+.B overlay\-timer \-\-resume
+.TP
+Move the overlay to the top\-left corner and save it:
+.B overlay\-timer \-\-corner tl \-\-save
+.TP
+Stop the timer:
+.B overlay\-timer \-\-stop
+.SH SEE ALSO
+.BR xdg\-user\-dirs (1)
+.SH AUTHOR
+Written for the overlay\-timer project.

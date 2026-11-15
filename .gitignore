@@ -1,0 +1,11 @@
+# Build
+/build/
+*.o
+*.a
+
+# Editor
+*.swp
+.vscode/
+
+# Traduções compiladas
+*.mo

@@ -32,6 +32,10 @@ msgid ""
 "(XWayland).\n"
 msgstr ""
 
+#: src/backend.c
+msgid "macOS backend not built"
+msgstr ""
+
 #: src/backend.c:48
 msgid "Wayland backend not built"
 msgstr ""

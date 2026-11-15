@@ -33,6 +33,10 @@ msgstr ""
 "aviso: sessão Wayland detectada, mas o backend Wayland não foi compilado; "
 "tentando X11 (XWayland).\n"
 
+#: src/backend.c
+msgid "macOS backend not built"
+msgstr "backend macOS não foi compilado"
+
 #: src/backend.c:48
 msgid "Wayland backend not built"
 msgstr "backend Wayland não foi compilado"

@@ -33,7 +33,7 @@ resume, stop or move the timer.
 | Language | C (C11) |
 | Build | CMake |
 | Target distro | Debian |
-| Windowing system | X11 and Wayland; `--x11`/`--wayland` flag; autodetection via `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY` |
+| Windowing system | X11, Wayland and macOS (AppKit, see `PLAN_MACOS.md`); `--x11`/`--wayland` flag; autodetection via `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY` |
 | Wayland | Requires the **wlr-layer-shell** protocol (Sway/Hyprland/wlroots). Without layer-shell (e.g. GNOME): **not supported**, emits a warning and exits |
 | Overlay | Low level: XCB (X11) / libwayland + layer-shell (Wayland) |
 | Text rendering | **Pango + Cairo** (font family selection + alpha) |
@@ -294,3 +294,10 @@ at compile time, which backends to build (at least one required).
   `test_config_kv.c` covers the enum conversions (corner/format/backend),
   `config_set_kv` (strings, numbers with range, enums, bool, screen list,
   invalid keys/values) and the deep copy of config. All 5 suites pass (`ctest`).
+- [x] **Phase 11** — macOS port (see `PLAN_MACOS.md`): `backend_macos.m`
+  (AppKit, click-through transparent window per screen, Cairo → CGImage with
+  Retina scale, non-blocking event pump); `BACKEND_MACOS` + `macos` config
+  value; daemon pumps fd-less backends every iteration; portable
+  `FD_CLOEXEC` sockets; `$TMPDIR` runtime dir on macOS; CMake `WITH_MACOS`,
+  `Intl` and pkg-config imported targets. Linux build and tests revalidated;
+  **still needs validation on a real Mac**.

@@ -5,7 +5,7 @@ project(overlay-timer
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS ON)  # precisamos de getopt_long / POSIX
+set(CMAKE_C_EXTENSIONS ON)  # we need getopt_long / POSIX
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -17,11 +17,19 @@ add_definitions(-D_GNU_SOURCE)
 # ------------------------------------------------------------------
 # Build options: choice of window backends
 # ------------------------------------------------------------------
-option(WITH_X11 "Build the X11 (XCB) backend" ON)
-option(WITH_WAYLAND "Build the Wayland (wlr-layer-shell) backend" ON)
+# On macOS only the native AppKit backend is built by default.
+if(APPLE)
+    set(_unix_backends_default OFF)
+else()
+    set(_unix_backends_default ON)
+endif()
+option(WITH_X11 "Build the X11 (XCB) backend" ${_unix_backends_default})
+option(WITH_WAYLAND "Build the Wayland (wlr-layer-shell) backend" ${_unix_backends_default})
+option(WITH_MACOS "Build the macOS (AppKit) backend" ${APPLE})
 
-if(NOT WITH_X11 AND NOT WITH_WAYLAND)
-    message(FATAL_ERROR "At least one of WITH_X11 or WITH_WAYLAND must be ON")
+if(NOT WITH_X11 AND NOT WITH_WAYLAND AND NOT WITH_MACOS)
+    message(FATAL_ERROR
+        "At least one of WITH_X11, WITH_WAYLAND or WITH_MACOS must be ON")
 endif()
 
 # ------------------------------------------------------------------
@@ -56,20 +64,21 @@ target_compile_definitions(overlay_timer_core PUBLIC
 # Dependencies
 # ------------------------------------------------------------------
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(CAIRO REQUIRED cairo)
-pkg_check_modules(PANGO REQUIRED pangocairo)
-pkg_check_modules(AO REQUIRED ao)
-pkg_check_modules(SNDFILE REQUIRED sndfile)
+# IMPORTED_TARGET carries full library paths, needed for non-default
+# prefixes such as Homebrew's /opt/homebrew on macOS.
+pkg_check_modules(CAIRO REQUIRED IMPORTED_TARGET cairo)
+pkg_check_modules(PANGO REQUIRED IMPORTED_TARGET pangocairo)
+pkg_check_modules(AO REQUIRED IMPORTED_TARGET ao)
+pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
 
 find_package(Threads REQUIRED)
+# gettext: part of glibc on Linux, separate libintl on macOS (Homebrew).
+find_package(Intl REQUIRED)
 
-target_include_directories(overlay_timer_core PUBLIC
-    ${CAIRO_INCLUDE_DIRS} ${PANGO_INCLUDE_DIRS}
-    ${AO_INCLUDE_DIRS} ${SNDFILE_INCLUDE_DIRS})
+target_include_directories(overlay_timer_core PUBLIC ${Intl_INCLUDE_DIRS})
 target_link_libraries(overlay_timer_core PUBLIC
-    ${CAIRO_LIBRARIES} ${PANGO_LIBRARIES}
-    ${AO_LIBRARIES} ${SNDFILE_LIBRARIES}
-    Threads::Threads m)
+    PkgConfig::CAIRO PkgConfig::PANGO PkgConfig::AO PkgConfig::SNDFILE
+    ${Intl_LIBRARIES} Threads::Threads m)
 
 if(WITH_X11)
     pkg_check_modules(XCB REQUIRED xcb xcb-shape xcb-randr)
@@ -125,6 +134,18 @@ if(WITH_WAYLAND)
     target_include_directories(overlay_timer_core PUBLIC
         ${WAYLAND_INCLUDE_DIRS} "${GEN_DIR}")
     target_link_libraries(overlay_timer_core PUBLIC ${WAYLAND_LIBRARIES})
+endif()
+
+if(WITH_MACOS)
+    if(NOT APPLE)
+        message(FATAL_ERROR "WITH_MACOS requires building on macOS")
+    endif()
+    enable_language(OBJC)
+    # Manual retain/release (no ARC): NSWindow pointers live in C structs.
+    target_sources(overlay_timer_core PRIVATE src/backend_macos.m)
+    target_compile_definitions(overlay_timer_core PUBLIC WITH_MACOS)
+    target_link_libraries(overlay_timer_core PUBLIC
+        "-framework AppKit" "-framework QuartzCore")
 endif()
 
 # ------------------------------------------------------------------

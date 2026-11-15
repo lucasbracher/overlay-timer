@@ -19,6 +19,14 @@
 /* Paths                                                              */
 /* ------------------------------------------------------------------ */
 
+/* Creates a close-on-exec Unix stream socket (portable: SOCK_CLOEXEC is
+ * Linux-only). */
+static int unix_socket(void) {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd >= 0) fcntl(fd, F_SETFD, FD_CLOEXEC);
+    return fd;
+}
+
 static char *runtime_path(const char *name) {
     char *dir = xdg_runtime_dir();
     /* Ensure the directory exists (the /tmp/... fallback may not exist). */
@@ -115,7 +123,7 @@ int ipc_server_start(ipc_server_t *srv) {
     /* 2. Remove any orphan socket and create the new one. */
     unlink(srv->sock_path);
 
-    srv->listen_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    srv->listen_fd = unix_socket();
     if (srv->listen_fd < 0) {
         log_error(_("socket() failed: %s"), strerror(errno));
         goto fail;
@@ -182,7 +190,7 @@ void ipc_server_reply(int client_fd, const char *response) {
 
 static int client_connect(void) {
     char *path = ipc_socket_path();
-    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    int fd = unix_socket();
     if (fd < 0) { free(path); return -1; }
 
     struct sockaddr_un addr;

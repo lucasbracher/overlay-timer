@@ -19,6 +19,9 @@ overlay_backend_t *backend_wrap(const backend_vtable_t *vt, void *impl) {
 
 /* Detects the session type from the environment. */
 static backend_t detect_backend(void) {
+#ifdef WITH_MACOS
+    return BACKEND_MACOS;
+#endif
     const char *stype = getenv("XDG_SESSION_TYPE");
     if (stype) {
         if (strcmp(stype, "wayland") == 0) return BACKEND_WAYLAND;
@@ -34,6 +37,15 @@ overlay_backend_t *backend_create(backend_t which, const config_t *cfg,
     if (err) *err = NULL;
 
     backend_t target = (which == BACKEND_AUTO) ? detect_backend() : which;
+
+    if (target == BACKEND_MACOS) {
+#ifdef WITH_MACOS
+        return backend_create_macos(cfg, err);
+#else
+        if (err) *err = dupstr(_("macOS backend not built"));
+        return NULL;
+#endif
+    }
 
     if (target == BACKEND_WAYLAND) {
 #ifdef WITH_WAYLAND

@@ -96,6 +96,7 @@ const char *backend_to_str(backend_t b) {
     switch (b) {
         case BACKEND_X11:     return "x11";
         case BACKEND_WAYLAND: return "wayland";
+        case BACKEND_MACOS:   return "macos";
         case BACKEND_AUTO:
         default:              return "auto";
     }
@@ -106,6 +107,7 @@ bool backend_from_str(const char *s, backend_t *out) {
     if (str_ieq(s, "auto"))    { *out = BACKEND_AUTO; return true; }
     if (str_ieq(s, "x11"))     { *out = BACKEND_X11; return true; }
     if (str_ieq(s, "wayland")) { *out = BACKEND_WAYLAND; return true; }
+    if (str_ieq(s, "macos"))   { *out = BACKEND_MACOS; return true; }
     return false;
 }
 

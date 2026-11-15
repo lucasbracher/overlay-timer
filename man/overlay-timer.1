@@ -122,6 +122,9 @@ The Wayland backend requires the
 .B wlr\-layer\-shell
 protocol (Sway, Hyprland and other wlroots compositors). Compositors without
 it (e.g. GNOME/Mutter) are not supported and produce a clear error.
+.PP
+On macOS the native AppKit backend is always used (config value
+.BR backend " = " macos ).
 .SS Config
 .TP
 .BR \-\-config " " \fIPATH\fR
@@ -181,10 +184,14 @@ Control socket for the single running instance.
 .TP
 .I $XDG_RUNTIME_DIR/overlay\-timer.lock
 Lock file enforcing a single instance.
+On macOS, where
+.B XDG_RUNTIME_DIR
+is not set, both files live in
+.IR $TMPDIR/overlay\-timer/ .
 .SH ENVIRONMENT
 .TP
 .B XDG_SESSION_TYPE\fR, \fBWAYLAND_DISPLAY\fR, \fBDISPLAY
-Used to auto\-detect the window system backend.
+Used to auto\-detect the window system backend (ignored on macOS).
 .TP
 .B XDG_CONFIG_HOME\fR, \fBXDG_DATA_HOME\fR, \fBXDG_STATE_HOME\fR, \fBXDG_RUNTIME_DIR
 Standard XDG base directories, used for config, sounds, logs and the socket.

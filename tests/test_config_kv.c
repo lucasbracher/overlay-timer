@@ -34,10 +34,12 @@ static void test_backend_enum(void) {
     CHECK(backend_from_str("auto", &b) && b == BACKEND_AUTO);
     CHECK(backend_from_str("x11", &b) && b == BACKEND_X11);
     CHECK(backend_from_str("wayland", &b) && b == BACKEND_WAYLAND);
+    CHECK(backend_from_str("macos", &b) && b == BACKEND_MACOS);
     CHECK(!backend_from_str("vnc", &b));
     CHECK(strcmp(backend_to_str(BACKEND_AUTO), "auto") == 0);
     CHECK(strcmp(backend_to_str(BACKEND_X11), "x11") == 0);
     CHECK(strcmp(backend_to_str(BACKEND_WAYLAND), "wayland") == 0);
+    CHECK(strcmp(backend_to_str(BACKEND_MACOS), "macos") == 0);
 }
 
 static void test_set_kv_strings(void) {

@@ -59,7 +59,7 @@ char *path_expand_tilde(const char *path);
 char *xdg_config_home(void);  /* $XDG_CONFIG_HOME  or ~/.config          */
 char *xdg_data_home(void);    /* $XDG_DATA_HOME    or ~/.local/share     */
 char *xdg_state_home(void);   /* $XDG_STATE_HOME   or ~/.local/state     */
-char *xdg_runtime_dir(void);  /* $XDG_RUNTIME_DIR  or /tmp fallback      */
+char *xdg_runtime_dir(void);  /* $XDG_RUNTIME_DIR, $TMPDIR or /tmp fallback */
 
 /* Full path of the default config: <config_home>/overlay-timer/config.ini */
 char *default_config_path(void);

@@ -155,6 +155,18 @@ char *xdg_state_home(void)  { return xdg_dir("XDG_STATE_HOME", ".local/state"); 
 char *xdg_runtime_dir(void) {
     const char *v = getenv("XDG_RUNTIME_DIR");
     if (v && v[0] == '/') return xstrdup(v);
+#ifdef __APPLE__
+    /* macOS has no XDG_RUNTIME_DIR; $TMPDIR is per-user and private. */
+    const char *t = getenv("TMPDIR");
+    if (t && t[0] == '/') {
+        size_t len = strlen(t);
+        while (len > 1 && t[len - 1] == '/') len--;
+        char *out = xmalloc(len + sizeof "/overlay-timer");
+        memcpy(out, t, len);
+        strcpy(out + len, "/overlay-timer");
+        return out;
+    }
+#endif
     /* Insecure but functional fallback: /tmp/overlay-timer-<uid> */
     char buf[64];
     snprintf(buf, sizeof buf, "/tmp/overlay-timer-%u", (unsigned)getuid());

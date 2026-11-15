@@ -2,7 +2,7 @@
 
 Translucent, *click-through* overlay timer pinned to a corner of one or more
 screens. Supports **countdown** and **pomodoro mode**. Written in C, with
-backends for **X11** (XCB) and **Wayland** (wlr-layer-shell).
+backends for **X11** (XCB), **Wayland** (wlr-layer-shell) and **macOS** (AppKit).
 
 > See [`PLAN.md`](PLAN.md) for the full development plan, architecture and
 > technical decisions.
@@ -38,6 +38,18 @@ cmake -B build -DWITH_X11=OFF -DWITH_WAYLAND=ON   # Wayland only
 ```
 
 At least one backend is required.
+
+### Build (macOS)
+
+```sh
+brew install cmake pkg-config cairo pango libao libsndfile gettext
+
+cmake -B build -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+cmake --build build
+```
+
+On macOS only the native AppKit backend is built by default (`WITH_MACOS=ON`,
+`WITH_X11=OFF`, `WITH_WAYLAND=OFF`).
 
 ### Installation
 
@@ -76,8 +88,14 @@ options.
   (Sway, Hyprland, ...). Compositors without the `wlr-layer-shell` protocol
   (e.g. GNOME/Mutter) are **not supported** and produce a clear error.
 
-The backend is autodetected from `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY`/`DISPLAY`,
-or can be forced with `--x11` / `--wayland`.
+- **macOS** (AppKit): one borderless, transparent window per screen that
+  ignores the mouse, stays above normal windows and on every Space (including
+  over full-screen apps). No Dock icon. The control socket lives in
+  `$TMPDIR/overlay-timer/`. Font family names differ from Linux (e.g. `Menlo`).
+
+On Linux the backend is autodetected from
+`XDG_SESSION_TYPE`/`WAYLAND_DISPLAY`/`DISPLAY`, or can be forced with
+`--x11` / `--wayland`. On macOS the AppKit backend is always used.
 
 ## Configuration
 

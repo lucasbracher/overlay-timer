@@ -190,7 +190,8 @@ int daemon_run(const cli_opts_t *opts) {
             break;
         }
 
-        if (pfds[1].revents & POLLIN)
+        /* Backends without a pollable fd (macOS) are pumped every iteration. */
+        if (backend_fd < 0 || (pfds[1].revents & POLLIN))
             backend_pump_events(backend);
 
         if (pfds[0].revents & POLLIN) {

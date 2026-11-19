@@ -93,6 +93,8 @@ msgid ""
 "Time / mode:\n"
 "  -t, --time <MM:SS|HH:MM:SS>  start a countdown\n"
 "      --pomodoro <N>           start N pomodoros\n"
+"      --sync                   with --pomodoro: align cycles with the clock\n"
+"                               (:00 and :30 with the default 25+5 min)\n"
 "      --format <hhmmss|mmss>   display format (actual time takes "
 "precedence)\n"
 "\n"
@@ -382,4 +384,14 @@ msgstr ""
 #: src/main.c:144
 #, c-format
 msgid "error: failed to daemonize.\n"
+msgstr ""
+
+#: src/cli.c
+#, c-format
+msgid "error: --sync can only be used with --pomodoro\n"
+msgstr ""
+
+#: src/daemon.c
+#, c-format
+msgid "daemon: synced with clock (%ld s left in %s)"
 msgstr ""

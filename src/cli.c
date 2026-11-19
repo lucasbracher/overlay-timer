@@ -35,7 +35,8 @@ enum {
     OPT_SAVE,
     OPT_SOUNDS_DIR,
     OPT_NO_SOUND,
-    OPT_SOUND
+    OPT_SOUND,
+    OPT_SYNC
 };
 
 static const struct option LONG_OPTS[] = {
@@ -48,6 +49,7 @@ static const struct option LONG_OPTS[] = {
     {"screen",             required_argument, 0, OPT_SCREEN},
     {"format",             required_argument, 0, OPT_FORMAT},
     {"pomodoro",           required_argument, 0, OPT_POMODORO},
+    {"sync",               no_argument,       0, OPT_SYNC},
     {"pomodoro-minutes",   required_argument, 0, OPT_POMODORO_MINUTES},
     {"break-minutes",      required_argument, 0, OPT_BREAK_MINUTES},
     {"long-break-minutes", required_argument, 0, OPT_LONG_BREAK_MINUTES},
@@ -82,6 +84,8 @@ void cli_print_help(const char *prog) {
 "Time / mode:\n"
 "  -t, --time <MM:SS|HH:MM:SS>  start a countdown\n"
 "      --pomodoro <N>           start N pomodoros\n"
+"      --sync                   with --pomodoro: align cycles with the clock\n"
+"                               (:00 and :30 with the default 25+5 min)\n"
 "      --format <hhmmss|mmss>   display format (actual time takes precedence)\n"
 "\n"
 "Appearance:\n"
@@ -123,6 +127,7 @@ bool cli_parse(int argc, char **argv, cli_opts_t *opts) {
     opts->action = ACTION_NONE;
     opts->time_seconds = 0;
     opts->pomodoro_count = 0;
+    opts->sync = false;
     opts->config_path = NULL;
     opts->save = false;
     memset(&opts->set, 0, sizeof opts->set);
@@ -157,6 +162,9 @@ bool cli_parse(int argc, char **argv, cli_opts_t *opts) {
             opts->action = ACTION_START_POMODORO;
             break;
         }
+        case OPT_SYNC:
+            opts->sync = true;
+            break;
         case 'c':
             free(cfg->color); cfg->color = xstrdup(optarg);
             opts->set.color = true;
@@ -251,6 +259,11 @@ bool cli_parse(int argc, char **argv, cli_opts_t *opts) {
 
     if (optind < argc) {
         fprintf(stderr, _("error: unexpected argument: '%s'\n"), argv[optind]);
+        return false;
+    }
+
+    if (opts->sync && opts->action != ACTION_START_POMODORO) {
+        fprintf(stderr, _("error: --sync can only be used with --pomodoro\n"));
         return false;
     }
 

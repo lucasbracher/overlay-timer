@@ -51,6 +51,15 @@ seconds).
 .BR \-\-pomodoro " " \fIN\fR
 Start \fIN\fR pomodoros.
 .TP
+.B \-\-sync
+Only with \fB\-\-pomodoro\fR. Align the pomodoro cycle (work + break) with the
+system clock, anchored at local midnight. With the default 25 + 5 minutes this
+means work blocks start at \fB:00\fR and \fB:30\fR of every hour. If started
+during a work block, the first pomodoro gets only the time remaining (e.g. at
+\fB:02:20\fR it starts with \fB22:40\fR); if started during a break slot
+(e.g. \fB:28:10\fR), the session begins with the break of "pomodoro 0"
+(\fB01:50\fR) and all \fIN\fR pomodoros follow.
+.TP
 .BR \-\-format " " \fBhhmmss\fR | \fBmmss\fR
 Display format. The actual time value takes precedence (if hours are present,
 they are shown).

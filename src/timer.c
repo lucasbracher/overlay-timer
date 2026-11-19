@@ -27,6 +27,33 @@ void timer_init_pomodoro(otimer_t *t, int count, const config_t *cfg) {
     t->remaining = t->pomo_seconds;
 }
 
+void timer_sync_pomodoro(otimer_t *t, long cycle_offset) {
+    if (t->kind != TIMER_POMODORO) return;
+    long cycle = (long)t->pomo_seconds + t->break_seconds;
+    if (cycle <= 0) return;
+    cycle_offset %= cycle;
+    if (cycle_offset < 0) cycle_offset += cycle;
+
+    if (cycle_offset < t->pomo_seconds) {
+        t->pomo_index = 1;
+        t->phase = PHASE_WORK;
+        t->remaining = t->pomo_seconds - cycle_offset;
+    } else {
+        /* Break preceding the first pomodoro ("pomodoro 0"). */
+        t->pomo_index = 0;
+        t->phase = PHASE_BREAK;
+        t->remaining = cycle - cycle_offset;
+    }
+}
+
+long timer_cycle_offset(long secs_since_midnight, int work_seconds,
+                        int break_seconds) {
+    long cycle = (long)work_seconds + break_seconds;
+    if (cycle <= 0) return 0;
+    long off = secs_since_midnight % cycle;
+    return off < 0 ? off + cycle : off;
+}
+
 /* Chooses the duration/phase of the break that follows the current pomodoro. */
 static void enter_break(otimer_t *t) {
     bool is_long = (t->long_break_every > 0) &&

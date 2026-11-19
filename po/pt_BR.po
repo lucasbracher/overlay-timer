@@ -96,6 +96,8 @@ msgid ""
 "Time / mode:\n"
 "  -t, --time <MM:SS|HH:MM:SS>  start a countdown\n"
 "      --pomodoro <N>           start N pomodoros\n"
+"      --sync                   with --pomodoro: align cycles with the clock\n"
+"                               (:00 and :30 with the default 25+5 min)\n"
 "      --format <hhmmss|mmss>   display format (actual time takes "
 "precedence)\n"
 "\n"
@@ -139,6 +141,8 @@ msgstr ""
 "Tempo / modo:\n"
 "  -t, --time <MM:SS|HH:MM:SS>  inicia uma contagem regressiva\n"
 "      --pomodoro <N>           inicia N pomodoros\n"
+"      --sync                   com --pomodoro: alinha os ciclos com o relógio\n"
+"                               (:00 e :30 com o padrão de 25+5 min)\n"
 "      --format <hhmmss|mmss>   formato de exibição (o tempo informado tem "
 "precedência)\n"
 "\n"
@@ -430,3 +434,13 @@ msgstr "overlay-timer iniciado.\n"
 #, c-format
 msgid "error: failed to daemonize.\n"
 msgstr "erro: falha ao daemonizar.\n"
+
+#: src/cli.c
+#, c-format
+msgid "error: --sync can only be used with --pomodoro\n"
+msgstr "erro: --sync só pode ser usado com --pomodoro\n"
+
+#: src/daemon.c
+#, c-format
+msgid "daemon: synced with clock (%ld s left in %s)"
+msgstr "daemon: sincronizado com o relógio (%ld s restantes em %s)"

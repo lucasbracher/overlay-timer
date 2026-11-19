@@ -156,12 +156,33 @@ int daemon_run(const cli_opts_t *opts) {
     sigaction(SIGINT, &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
 
+    /* --sync: align with the wall clock right before the first frame, so
+     * backend startup time does not skew it. The first tick lands on the next
+     * wall-clock second boundary. */
+    long first_tick_ms = 1000;
+    if (opts->sync && st.timer.kind == TIMER_POMODORO) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        time_t now = ts.tv_sec;
+        struct tm lt;
+        localtime_r(&now, &lt);
+        long since_midnight = lt.tm_hour * 3600L + lt.tm_min * 60L + lt.tm_sec;
+        timer_sync_pomodoro(&st.timer,
+                            timer_cycle_offset(since_midnight,
+                                               st.timer.pomo_seconds,
+                                               st.timer.break_seconds));
+        first_tick_ms = 1000 - ts.tv_nsec / 1000000L;
+        log_info(_("daemon: synced with clock (%ld s left in %s)"),
+                 st.timer.remaining,
+                 timer_in_break(&st.timer) ? "break" : "pomodoro");
+    }
+
     overlay_frame_t frame;
     build_frame(&st, &frame, true);
     backend_render(backend, &frame);
 
     int backend_fd = backend_get_fd(backend);
-    long next_tick = now_ms() + 1000;
+    long next_tick = now_ms() + first_tick_ms;
 
     bool finished = false;
     bool blink_on = true;

@@ -92,7 +92,50 @@ static void test_long_break(void) {
     CHECK(t.remaining == 120);
 }
 
+/* Starts a synced 25+5 session at mm:ss past the hour. */
+static void synced_at(otimer_t *t, int count, int mm, int ss) {
+    config_t c; config_set_defaults(&c); /* 25 + 5 */
+    c.long_break_every = 4;
+    timer_init_pomodoro(t, count, &c);
+    long since_midnight = 14 * 3600L + mm * 60L + ss;
+    timer_sync_pomodoro(t, timer_cycle_offset(since_midnight, t->pomo_seconds,
+                                              t->break_seconds));
+    config_free(&c);
+}
+
+static void test_sync(void) {
+    otimer_t t;
+    char lbl[64];
+    /* work phase of the first half-hour */
+    synced_at(&t, 4, 2, 20);
+    CHECK(t.phase == PHASE_WORK && t.pomo_index == 1 && t.remaining == 22 * 60 + 40);
+    synced_at(&t, 4, 19, 30);
+    CHECK(t.phase == PHASE_WORK && t.remaining == 5 * 60 + 30);
+    /* break of "pomodoro 0" (short, even with long_break_every) */
+    synced_at(&t, 4, 28, 10);
+    CHECK(t.phase == PHASE_BREAK && t.pomo_index == 0 && t.remaining == 60 + 50);
+    timer_label(&t, lbl, sizeof lbl);
+    CHECK(strcmp(lbl, "break 0/4") == 0);
+    /* second half-hour */
+    synced_at(&t, 4, 32, 20);
+    CHECK(t.phase == PHASE_WORK && t.pomo_index == 1 && t.remaining == 22 * 60 + 40);
+    synced_at(&t, 4, 49, 30);
+    CHECK(t.phase == PHASE_WORK && t.remaining == 5 * 60 + 30);
+    synced_at(&t, 4, 58, 10);
+    CHECK(t.phase == PHASE_BREAK && t.pomo_index == 0 && t.remaining == 60 + 50);
+    /* exactly on the boundary: full pomodoro */
+    synced_at(&t, 4, 30, 0);
+    CHECK(t.phase == PHASE_WORK && t.remaining == 25 * 60);
+
+    /* break 0 ends -> pomodoro 1 of N, all N still run */
+    synced_at(&t, 1, 58, 10);
+    CHECK(run_ticks(&t, 110) == TEVENT_BREAK_END);
+    CHECK(t.phase == PHASE_WORK && t.pomo_index == 1 && t.remaining == 25 * 60);
+    CHECK(run_ticks(&t, 25 * 60) == TEVENT_FINISHED);
+}
+
 int main(void) {
+    test_sync();
     test_countdown();
     test_pause();
     test_pomodoro_basic();

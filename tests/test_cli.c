@@ -41,6 +41,22 @@ static void test_pomodoro(void) {
     PARSE("--pomodoro", "0");
     CHECK(!ok); /* invalid count */
     cli_free(&opts);
+
+    PARSE("--pomodoro", "4", "--sync");
+    CHECK(ok && opts.action == ACTION_START_POMODORO && opts.sync);
+    cli_free(&opts);
+
+    PARSE("--sync", "--pomodoro", "2");
+    CHECK(ok && opts.sync && opts.pomodoro_count == 2);
+    cli_free(&opts);
+
+    PARSE("-t", "10:00", "--sync");
+    CHECK(!ok); /* --sync requires --pomodoro */
+    cli_free(&opts);
+
+    PARSE("--sync");
+    CHECK(!ok);
+    cli_free(&opts);
 }
 
 static void test_control(void) {

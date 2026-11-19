@@ -70,6 +70,7 @@ ctest --test-dir build --output-on-failure
 ```sh
 overlay-timer -t 25:00            # start a 25-min countdown
 overlay-timer --pomodoro 4        # 4 pomodoros
+overlay-timer --pomodoro 4 --sync # 4 pomodoros aligned with :00 and :30
 overlay-timer --pause             # pause the running timer
 overlay-timer --corner tl         # move to the top-left corner
 overlay-timer --stop              # stop

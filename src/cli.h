@@ -24,6 +24,7 @@ typedef struct {
     /* Time/pomodoro values. */
     long   time_seconds;   /* ACTION_START_TIMER */
     int    pomodoro_count; /* ACTION_START_POMODORO */
+    bool   sync;           /* --sync: align the pomodoro cycle with the clock */
 
     /* Alternate config path (or NULL). */
     char  *config_path;

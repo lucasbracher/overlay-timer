@@ -23,7 +23,8 @@ typedef enum {
     BACKEND_AUTO = 0,
     BACKEND_X11,
     BACKEND_WAYLAND,
-    BACKEND_MACOS
+    BACKEND_MACOS,
+    BACKEND_WIN32
 } backend_t;
 
 #define MAX_SCREENS 16

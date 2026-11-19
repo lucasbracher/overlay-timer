@@ -1,7 +1,6 @@
 #include "daemon.h"
 
 #include <errno.h>
-#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +14,15 @@
 #include "timer.h"
 #include "util.h"
 #include "audio.h"
+
+#ifdef _WIN32
+/* Winsock: the IPC socket is a SOCKET, polled with WSAPoll (which ignores
+ * entries with a negative fd, like poll). */
+#include <winsock2.h>
+#define poll(f, n, t) WSAPoll((f), (n), (t))
+#else
+#include <poll.h>
+#endif
 
 typedef struct {
     config_t cfg;
@@ -70,8 +78,8 @@ static void build_frame(daemon_state_t *st, overlay_frame_t *f, bool visible) {
 static void handle_set(daemon_state_t *st, char *args, char *resp, size_t rsz) {
     int applied = 0, failed = 0;
     char *save = NULL;
-    for (char *tok = strtok_r(args, " \t", &save); tok;
-         tok = strtok_r(NULL, " \t", &save)) {
+    for (char *tok = str_tok(args, " \t", &save); tok;
+         tok = str_tok(NULL, " \t", &save)) {
         char *eq = strchr(tok, '=');
         if (!eq) { failed++; continue; }
         *eq = '\0';
@@ -150,11 +158,17 @@ int daemon_run(const cli_opts_t *opts) {
 
     st.audio = audio_init(st.cfg.sounds_dir, st.cfg.enable_sound);
 
+#ifdef _WIN32
+    /* No sigaction/SIGPIPE; the daemon is normally stopped via IPC anyway. */
+    signal(SIGTERM, on_signal);
+    signal(SIGINT, on_signal);
+#else
     struct sigaction sa = {0};
     sa.sa_handler = on_signal;
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     /* --sync: align with the wall clock right before the first frame, so
      * backend startup time does not skew it. The first tick lands on the next
@@ -165,7 +179,7 @@ int daemon_run(const cli_opts_t *opts) {
         clock_gettime(CLOCK_REALTIME, &ts);
         time_t now = ts.tv_sec;
         struct tm lt;
-        localtime_r(&now, &lt);
+        local_time(&now, &lt);
         long since_midnight = lt.tm_hour * 3600L + lt.tm_min * 60L + lt.tm_sec;
         timer_sync_pomodoro(&st.timer,
                             timer_cycle_offset(since_midnight,
@@ -203,7 +217,9 @@ int daemon_run(const cli_opts_t *opts) {
         pfds[0].fd = srv.listen_fd; pfds[0].events = POLLIN; pfds[0].revents = 0;
         pfds[1].fd = backend_fd;    pfds[1].events = POLLIN; pfds[1].revents = 0;
 
-        int pr = poll(pfds, 2, (int)timeout);
+        /* Only poll the backend slot when it has an fd (WSAPoll on Windows
+         * does not reliably ignore an invalid entry). */
+        int pr = poll(pfds, backend_fd >= 0 ? 2 : 1, (int)timeout);
         if (pr < 0) {
             if (errno == EINTR) continue;
             log_error(_("poll failed: %s"), strerror(errno));
@@ -211,7 +227,7 @@ int daemon_run(const cli_opts_t *opts) {
             break;
         }
 
-        /* Backends without a pollable fd (macOS) are pumped every iteration. */
+        /* Backends without a pollable fd (macOS, Win32) are pumped every iteration. */
         if (backend_fd < 0 || (pfds[1].revents & POLLIN))
             backend_pump_events(backend);
 

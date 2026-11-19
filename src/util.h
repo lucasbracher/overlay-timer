@@ -4,6 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
+
+/* fopen() mode suffix for close-on-exec. Windows' UCRT rejects the 'e' flag
+ * (fopen returns NULL), so it is empty there. Usage: fopen(p, "r" FOPEN_CLOEXEC). */
+#ifdef _WIN32
+#define FOPEN_CLOEXEC ""
+#else
+#define FOPEN_CLOEXEC "e"
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Logging                                                            */
@@ -46,6 +55,12 @@ char *str_trim(char *s);
 
 /* Case-insensitive comparison. */
 bool str_ieq(const char *a, const char *b);
+
+/* Portable strtok_r (not guaranteed on Windows). */
+char *str_tok(char *s, const char *delim, char **save);
+
+/* Portable localtime_r (localtime_s on Windows). Returns `out` or NULL. */
+struct tm *local_time(const time_t *t, struct tm *out);
 
 /* ------------------------------------------------------------------ */
 /* XDG paths                                                          */

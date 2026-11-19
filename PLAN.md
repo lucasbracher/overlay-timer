@@ -33,7 +33,7 @@ resume, stop or move the timer.
 | Language | C (C11) |
 | Build | CMake |
 | Target distro | Debian |
-| Windowing system | X11, Wayland and macOS (AppKit, see `PLAN_MACOS.md`); `--x11`/`--wayland` flag; autodetection via `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY` |
+| Windowing system | X11, Wayland, macOS (AppKit, see `PLAN_MACOS.md`) and Windows (Win32, see `PLAN_WINDOWS.md`); `--x11`/`--wayland` flag; autodetection via `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY` |
 | Wayland | Requires the **wlr-layer-shell** protocol (Sway/Hyprland/wlroots). Without layer-shell (e.g. GNOME): **not supported**, emits a warning and exits |
 | Overlay | Low level: XCB (X11) / libwayland + layer-shell (Wayland) |
 | Text rendering | **Pango + Cairo** (font family selection + alpha) |
@@ -301,3 +301,11 @@ at compile time, which backends to build (at least one required).
   `FD_CLOEXEC` sockets; `$TMPDIR` runtime dir on macOS; CMake `WITH_MACOS`,
   `Intl` and pkg-config imported targets. Linux build and tests revalidated;
   **still needs validation on a real Mac**.
+- [x] **Phase 12** — Windows port (see `PLAN_WINDOWS.md`): `backend_win32.c`
+  (layered click-through topmost window per monitor, Cairo DIB →
+  `UpdateLayeredWindow`); `ipc_win32.c` (Winsock `AF_UNIX`, named mutex,
+  self-relaunch `daemonize()`); `WSAPoll` in the daemon; `%APPDATA%` /
+  `%LOCALAPPDATA%` paths; `FOPEN_CLOEXEC`, `str_tok`, `local_time` helpers;
+  `BACKEND_WIN32` + `win32` config value; CMake `WITH_WIN32`. Linux build and
+  tests revalidated; MinGW-w64 cross-build checked; **still needs validation
+  on real Windows**.

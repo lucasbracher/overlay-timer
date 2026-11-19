@@ -134,6 +134,8 @@ it (e.g. GNOME/Mutter) are not supported and produce a clear error.
 .PP
 On macOS the native AppKit backend is always used (config value
 .BR backend " = " macos ).
+On Windows the native Win32 backend is always used (config value
+.BR backend " = " win32 ).
 .SS Config
 .TP
 .BR \-\-config " " \fIPATH\fR
@@ -197,10 +199,16 @@ On macOS, where
 .B XDG_RUNTIME_DIR
 is not set, both files live in
 .IR $TMPDIR/overlay\-timer/ .
+.PP
+On Windows the configuration file is
+.IR %APPDATA%\(rsoverlay\-timer\(rsconfig.ini ;
+the log and the control socket live in
+.IR %LOCALAPPDATA%\(rsoverlay\-timer\(rs ,
+and a named mutex replaces the lock file.
 .SH ENVIRONMENT
 .TP
 .B XDG_SESSION_TYPE\fR, \fBWAYLAND_DISPLAY\fR, \fBDISPLAY
-Used to auto\-detect the window system backend (ignored on macOS).
+Used to auto\-detect the window system backend (ignored on macOS and Windows).
 .TP
 .B XDG_CONFIG_HOME\fR, \fBXDG_DATA_HOME\fR, \fBXDG_STATE_HOME\fR, \fBXDG_RUNTIME_DIR
 Standard XDG base directories, used for config, sounds, logs and the socket.

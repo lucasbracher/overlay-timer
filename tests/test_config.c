@@ -4,6 +4,13 @@
 #include <string.h>
 #include <unistd.h>
 
+/* No /tmp on native Windows: create the temp file in the current dir. */
+#ifdef _WIN32
+#define TMP_TEMPLATE "overlay-timer-test-XXXXXX"
+#else
+#define TMP_TEMPLATE "/tmp/overlay-timer-test-XXXXXX"
+#endif
+
 #include "../src/config.h"
 
 static int failures = 0;
@@ -39,7 +46,7 @@ static void test_roundtrip(void) {
     c.enable_sound = false;
     c.backend = BACKEND_X11;
 
-    char tmpl[] = "/tmp/overlay-timer-test-XXXXXX";
+    char tmpl[] = TMP_TEMPLATE;
     int fd = mkstemp(tmpl);
     CHECK(fd >= 0);
     close(fd);
@@ -64,7 +71,7 @@ static void test_roundtrip(void) {
 
 static void test_merge(void) {
     /* load over defaults only changes keys present in the file. */
-    char tmpl[] = "/tmp/overlay-timer-test-XXXXXX";
+    char tmpl[] = TMP_TEMPLATE;
     int fd = mkstemp(tmpl);
     CHECK(fd >= 0);
     FILE *fp = fdopen(fd, "w");

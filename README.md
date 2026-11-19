@@ -2,7 +2,7 @@
 
 Translucent, *click-through* overlay timer pinned to a corner of one or more
 screens. Supports **countdown** and **pomodoro mode**. Written in C, with
-backends for **X11** (XCB), **Wayland** (wlr-layer-shell) and **macOS** (AppKit).
+backends for **X11** (XCB), **Wayland** (wlr-layer-shell), **macOS** (AppKit) and **Windows** (10 or newer).
 
 > See [`PLAN.md`](PLAN.md) for the full development plan, architecture and
 > technical decisions.
@@ -51,6 +51,22 @@ cmake --build build
 On macOS only the native AppKit backend is built by default (`WITH_MACOS=ON`,
 `WITH_X11=OFF`, `WITH_WAYLAND=OFF`).
 
+### Build (Windows)
+
+Windows 10 (1803) or newer, built with [MSYS2](https://www.msys2.org/). In the
+**UCRT64** shell:
+
+```sh
+pacman -S --needed mingw-w64-ucrt-x86_64-{toolchain,cmake,ninja,pkgconf,cairo,pango,libao,libsndfile,gettext}
+
+cmake -B build -G Ninja
+cmake --build build
+```
+
+On Windows only the native Win32 backend is built by default (`WITH_WIN32=ON`).
+The executable depends on the MSYS2 DLLs; run it from the UCRT64 shell or copy
+the DLLs next to it.
+
 ### Installation
 
 ```sh
@@ -94,13 +110,21 @@ options.
   over full-screen apps). No Dock icon. The control socket lives in
   `$TMPDIR/overlay-timer/`. Font family names differ from Linux (e.g. `Menlo`).
 
+- **Windows** (Win32): one layered, click-through, topmost window per screen
+  (work area, above the taskbar), hidden from the taskbar and Alt+Tab.
+  Config in `%APPDATA%\overlay-timer\`, log and control socket in
+  `%LOCALAPPDATA%\overlay-timer\`. Font family names differ from Linux
+  (e.g. `Consolas`).
+
 On Linux the backend is autodetected from
 `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY`/`DISPLAY`, or can be forced with
-`--x11` / `--wayland`. On macOS the AppKit backend is always used.
+`--x11` / `--wayland`. On macOS the AppKit backend is always used; on
+Windows, the Win32 backend.
 
 ## Configuration
 
-INI file at `~/.config/overlay-timer/config.ini` (created with default values
+INI file at `~/.config/overlay-timer/config.ini` (on Windows,
+`%APPDATA%\overlay-timer\config.ini`; created with default values
 on first run). CLI options take precedence; use `--save` to write them back.
 See [`config/config.ini`](config/config.ini) for the commented template.
 

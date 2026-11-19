@@ -6,7 +6,7 @@
 /*
  * Common infrastructure for the concrete backends.
  *
- * Each backend (X11, Wayland, macOS) implements a set of static functions and
+ * Each backend (X11, Wayland, macOS, Win32) implements a set of static functions and
  * exposes a `backend_vtable_t`. The `overlay_backend_t` wrapper holds the vtable
  * and an opaque pointer to the backend-specific state. The public functions
  * forward through the vtable. This lets both backends coexist in the same
@@ -38,6 +38,9 @@ overlay_backend_t *backend_create_wayland(const config_t *cfg, char **err);
 #endif
 #ifdef WITH_MACOS
 overlay_backend_t *backend_create_macos(const config_t *cfg, char **err);
+#endif
+#ifdef WITH_WIN32
+overlay_backend_t *backend_create_win32(const config_t *cfg, char **err);
 #endif
 
 #endif /* OVERLAY_TIMER_BACKEND_INTERNAL_H */

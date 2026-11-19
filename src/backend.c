@@ -22,6 +22,9 @@ static backend_t detect_backend(void) {
 #ifdef WITH_MACOS
     return BACKEND_MACOS;
 #endif
+#ifdef WITH_WIN32
+    return BACKEND_WIN32;
+#endif
     const char *stype = getenv("XDG_SESSION_TYPE");
     if (stype) {
         if (strcmp(stype, "wayland") == 0) return BACKEND_WAYLAND;
@@ -37,6 +40,15 @@ overlay_backend_t *backend_create(backend_t which, const config_t *cfg,
     if (err) *err = NULL;
 
     backend_t target = (which == BACKEND_AUTO) ? detect_backend() : which;
+
+    if (target == BACKEND_WIN32) {
+#ifdef WITH_WIN32
+        return backend_create_win32(cfg, err);
+#else
+        if (err) *err = dupstr(_("Win32 backend not built"));
+        return NULL;
+#endif
+    }
 
     if (target == BACKEND_MACOS) {
 #ifdef WITH_MACOS

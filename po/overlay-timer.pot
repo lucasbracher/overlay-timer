@@ -395,3 +395,23 @@ msgstr ""
 #, c-format
 msgid "daemon: synced with clock (%ld s left in %s)"
 msgstr ""
+
+#: src/backend.c
+msgid "Win32 backend not built"
+msgstr ""
+
+#: src/ipc_win32.c
+msgid "cannot create mutex: %s"
+msgstr ""
+
+#: src/ipc_win32.c
+msgid "CreateProcess failed: %s"
+msgstr ""
+
+#: src/backend_win32.c
+msgid "cannot register window class"
+msgstr ""
+
+#: src/backend_win32.c
+msgid "cannot create overlay window"
+msgstr ""

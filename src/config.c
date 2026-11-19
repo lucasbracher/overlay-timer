@@ -97,6 +97,7 @@ const char *backend_to_str(backend_t b) {
         case BACKEND_X11:     return "x11";
         case BACKEND_WAYLAND: return "wayland";
         case BACKEND_MACOS:   return "macos";
+        case BACKEND_WIN32:   return "win32";
         case BACKEND_AUTO:
         default:              return "auto";
     }
@@ -108,6 +109,7 @@ bool backend_from_str(const char *s, backend_t *out) {
     if (str_ieq(s, "x11"))     { *out = BACKEND_X11; return true; }
     if (str_ieq(s, "wayland")) { *out = BACKEND_WAYLAND; return true; }
     if (str_ieq(s, "macos"))   { *out = BACKEND_MACOS; return true; }
+    if (str_ieq(s, "win32"))   { *out = BACKEND_WIN32; return true; }
     return false;
 }
 
@@ -265,7 +267,7 @@ static void apply_kv(config_t *cfg, const char *section, const char *key,
 
 bool config_load_file(config_t *cfg, const char *path) {
     char *rpath = path_expand_tilde(path);
-    FILE *fp = fopen(rpath, "re");
+    FILE *fp = fopen(rpath, "r" FOPEN_CLOEXEC);
     if (!fp) { free(rpath); return false; }
 
     char section[64] = "";
@@ -320,7 +322,7 @@ bool config_save_file(const config_t *cfg, const char *path) {
         *slash = '/';
     }
 
-    FILE *fp = fopen(rpath, "we");
+    FILE *fp = fopen(rpath, "w" FOPEN_CLOEXEC);
     if (!fp) { free(rpath); return false; }
 
     fputs("; overlay-timer — configuration file\n", fp);
@@ -362,7 +364,7 @@ bool config_save_file(const config_t *cfg, const char *path) {
 
 bool config_ensure_default(const char *path) {
     char *rpath = path_expand_tilde(path);
-    FILE *fp = fopen(rpath, "re");
+    FILE *fp = fopen(rpath, "r" FOPEN_CLOEXEC);
     if (fp) { fclose(fp); free(rpath); return true; }
     free(rpath);
 

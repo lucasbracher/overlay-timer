@@ -443,3 +443,23 @@ msgstr "error: --sync can only be used with --pomodoro\n"
 #, c-format
 msgid "daemon: synced with clock (%ld s left in %s)"
 msgstr "daemon: synced with clock (%ld s left in %s)"
+
+#: src/backend.c
+msgid "Win32 backend not built"
+msgstr "Win32 backend not built"
+
+#: src/ipc_win32.c
+msgid "cannot create mutex: %s"
+msgstr "cannot create mutex: %s"
+
+#: src/ipc_win32.c
+msgid "CreateProcess failed: %s"
+msgstr "CreateProcess failed: %s"
+
+#: src/backend_win32.c
+msgid "cannot register window class"
+msgstr "cannot register window class"
+
+#: src/backend_win32.c
+msgid "cannot create overlay window"
+msgstr "cannot create overlay window"

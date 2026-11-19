@@ -2,7 +2,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +9,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
+#ifdef _WIN32
+#include <direct.h> /* _mkdir */
+#else
+#include <pwd.h>
 #include <unistd.h>
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Logging                                                            */
@@ -22,7 +26,7 @@ static FILE *g_log_fp = NULL; /* NULL => stderr */
 void log_set_level(log_level_t level) { g_log_level = level; }
 
 bool log_set_file(const char *path) {
-    FILE *fp = fopen(path, "ae");
+    FILE *fp = fopen(path, "a" FOPEN_CLOEXEC);
     if (!fp) return false;
     if (g_log_fp) fclose(g_log_fp);
     g_log_fp = fp;
@@ -47,7 +51,7 @@ void log_msg(log_level_t level, const char *fmt, ...) {
     char ts[32];
     time_t now = time(NULL);
     struct tm tmv;
-    localtime_r(&now, &tmv);
+    local_time(&now, &tmv);
     strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tmv);
 
     fprintf(fp, "[%s] %-5s ", ts, level_name(level));
@@ -111,9 +115,62 @@ bool str_ieq(const char *a, const char *b) {
     return *a == *b;
 }
 
+char *str_tok(char *s, const char *delim, char **save) {
+    if (!s) s = *save;
+    if (!s) return NULL;
+    s += strspn(s, delim);
+    if (!*s) { *save = NULL; return NULL; }
+    char *end = s + strcspn(s, delim);
+    if (*end) { *end = '\0'; *save = end + 1; }
+    else      { *save = NULL; }
+    return s;
+}
+
+struct tm *local_time(const time_t *t, struct tm *out) {
+#ifdef _WIN32
+    return localtime_s(out, t) == 0 ? out : NULL;
+#else
+    return localtime_r(t, out);
+#endif
+}
+
 /* ------------------------------------------------------------------ */
 /* XDG paths                                                          */
 /* ------------------------------------------------------------------ */
+
+#ifdef _WIN32
+/*
+ * Windows: paths come from %USERPROFILE%, %APPDATA% and %LOCALAPPDATA%.
+ * Backslashes are converted to '/', which the Windows APIs accept, so the
+ * rest of the code can keep joining paths with '/'.
+ */
+static char *win_env_path(const char *env) {
+    const char *v = getenv(env);
+    if (!v || !*v) return NULL;
+    char *out = xstrdup(v);
+    for (char *p = out; *p; p++)
+        if (*p == '\\') *p = '/';
+    size_t len = strlen(out);
+    while (len > 3 && out[len - 1] == '/') out[--len] = '\0';
+    return out;
+}
+
+/* Absolute path: "C:/..." or "//server/...". */
+static bool is_abs_path(const char *p) {
+    if (!p) return false;
+    if (p[0] == '/' || p[0] == '\\') return true;
+    return isalpha((unsigned char)p[0]) && p[1] == ':' &&
+           (p[2] == '/' || p[2] == '\\');
+}
+
+static const char *home_dir(void) {
+    static char *home = NULL;
+    if (!home) home = win_env_path("USERPROFILE");
+    if (!home) home = xstrdup("C:/");
+    return home;
+}
+#else
+static bool is_abs_path(const char *p) { return p && p[0] == '/'; }
 
 static const char *home_dir(void) {
     const char *h = getenv("HOME");
@@ -121,6 +178,7 @@ static const char *home_dir(void) {
     struct passwd *pw = getpwuid(getuid());
     return (pw && pw->pw_dir) ? pw->pw_dir : "/tmp";
 }
+#endif
 
 char *path_expand_tilde(const char *path) {
     if (!path) return NULL;
@@ -139,7 +197,7 @@ char *path_expand_tilde(const char *path) {
 
 static char *xdg_dir(const char *env, const char *fallback_rel) {
     const char *v = getenv(env);
-    if (v && v[0] == '/') return xstrdup(v);
+    if (is_abs_path(v)) return xstrdup(v);
 
     const char *home = home_dir();
     size_t n = strlen(home) + 1 + strlen(fallback_rel) + 1;
@@ -148,6 +206,31 @@ static char *xdg_dir(const char *env, const char *fallback_rel) {
     return out;
 }
 
+#ifdef _WIN32
+/* An XDG_* variable still wins (handy for tests); otherwise the Windows
+ * folder from `win_env`, falling back to ~/<fallback_rel>. */
+static char *win_dir(const char *xdg_env, const char *win_env,
+                     const char *fallback_rel) {
+    const char *v = getenv(xdg_env);
+    if (is_abs_path(v)) return xstrdup(v);
+    char *w = win_env_path(win_env);
+    if (w) return w;
+    return xdg_dir(xdg_env, fallback_rel);
+}
+
+char *xdg_config_home(void) { return win_dir("XDG_CONFIG_HOME", "APPDATA", "AppData/Roaming"); }
+char *xdg_data_home(void)   { return win_dir("XDG_DATA_HOME", "LOCALAPPDATA", "AppData/Local"); }
+char *xdg_state_home(void)  { return win_dir("XDG_STATE_HOME", "LOCALAPPDATA", "AppData/Local"); }
+
+char *xdg_runtime_dir(void) {
+    char *base = win_dir("XDG_RUNTIME_DIR", "LOCALAPPDATA", "AppData/Local");
+    size_t n = strlen(base) + sizeof "/overlay-timer";
+    char *out = xmalloc(n);
+    snprintf(out, n, "%s/overlay-timer", base);
+    free(base);
+    return out;
+}
+#else
 char *xdg_config_home(void) { return xdg_dir("XDG_CONFIG_HOME", ".config"); }
 char *xdg_data_home(void)   { return xdg_dir("XDG_DATA_HOME", ".local/share"); }
 char *xdg_state_home(void)  { return xdg_dir("XDG_STATE_HOME", ".local/state"); }
@@ -172,6 +255,7 @@ char *xdg_runtime_dir(void) {
     snprintf(buf, sizeof buf, "/tmp/overlay-timer-%u", (unsigned)getuid());
     return xstrdup(buf);
 }
+#endif
 
 char *default_config_path(void) {
     char *cfg = xdg_config_home();
@@ -183,22 +267,38 @@ char *default_config_path(void) {
     return out;
 }
 
+#ifdef _WIN32
+static int make_dir(const char *p, unsigned int mode) { (void)mode; return _mkdir(p); }
+static bool is_sep(char c) { return c == '/' || c == '\\'; }
+#else
+static int make_dir(const char *p, unsigned int mode) { return mkdir(p, (mode_t)mode); }
+static bool is_sep(char c) { return c == '/'; }
+#endif
+
 bool mkdirs(const char *path, unsigned int mode) {
     if (!path || !*path) return false;
 
     char *tmp = xstrdup(path);
     size_t len = strlen(tmp);
-    if (len > 1 && tmp[len - 1] == '/') tmp[len - 1] = '\0';
+    if (len > 1 && is_sep(tmp[len - 1])) tmp[len - 1] = '\0';
+
+    /* Skip the root ("/" or, on Windows, a drive like "C:/"). */
+    char *start = tmp + 1;
+#ifdef _WIN32
+    if (isalpha((unsigned char)tmp[0]) && tmp[1] == ':') start = tmp + 3;
+    if (start > tmp + strlen(tmp)) start = tmp + strlen(tmp);
+#endif
 
     bool ok = true;
-    for (char *p = tmp + 1; *p; p++) {
-        if (*p == '/') {
+    for (char *p = start; *p; p++) {
+        if (is_sep(*p)) {
+            char c = *p;
             *p = '\0';
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST) { ok = false; break; }
-            *p = '/';
+            if (make_dir(tmp, mode) != 0 && errno != EEXIST) { ok = false; break; }
+            *p = c;
         }
     }
-    if (ok && mkdir(tmp, mode) != 0 && errno != EEXIST) ok = false;
+    if (ok && make_dir(tmp, mode) != 0 && errno != EEXIST) ok = false;
 
     free(tmp);
     return ok;

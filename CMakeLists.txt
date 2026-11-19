@@ -17,8 +17,8 @@ add_definitions(-D_GNU_SOURCE)
 # ------------------------------------------------------------------
 # Build options: choice of window backends
 # ------------------------------------------------------------------
-# On macOS only the native AppKit backend is built by default.
-if(APPLE)
+# On macOS / Windows only the native backend is built by default.
+if(APPLE OR WIN32)
     set(_unix_backends_default OFF)
 else()
     set(_unix_backends_default ON)
@@ -26,10 +26,11 @@ endif()
 option(WITH_X11 "Build the X11 (XCB) backend" ${_unix_backends_default})
 option(WITH_WAYLAND "Build the Wayland (wlr-layer-shell) backend" ${_unix_backends_default})
 option(WITH_MACOS "Build the macOS (AppKit) backend" ${APPLE})
+option(WITH_WIN32 "Build the Windows (Win32) backend" ${WIN32})
 
-if(NOT WITH_X11 AND NOT WITH_WAYLAND AND NOT WITH_MACOS)
+if(NOT WITH_X11 AND NOT WITH_WAYLAND AND NOT WITH_MACOS AND NOT WITH_WIN32)
     message(FATAL_ERROR
-        "At least one of WITH_X11, WITH_WAYLAND or WITH_MACOS must be ON")
+        "At least one of WITH_X11, WITH_WAYLAND, WITH_MACOS or WITH_WIN32 must be ON")
 endif()
 
 # ------------------------------------------------------------------
@@ -52,6 +53,12 @@ set(CORE_SOURCES
     src/timer.c
     src/audio.c
 )
+
+# Windows has its own IPC (Winsock AF_UNIX, named mutex, self-relaunch).
+if(WIN32)
+    list(REMOVE_ITEM CORE_SOURCES src/ipc.c)
+    list(APPEND CORE_SOURCES src/ipc_win32.c)
+endif()
 
 add_library(overlay_timer_core STATIC ${CORE_SOURCES})
 target_include_directories(overlay_timer_core PUBLIC src)
@@ -146,6 +153,23 @@ if(WITH_MACOS)
     target_compile_definitions(overlay_timer_core PUBLIC WITH_MACOS)
     target_link_libraries(overlay_timer_core PUBLIC
         "-framework AppKit" "-framework QuartzCore")
+endif()
+
+if(WITH_WIN32)
+    if(NOT WIN32)
+        message(FATAL_ERROR "WITH_WIN32 requires building on Windows")
+    endif()
+    pkg_check_modules(CAIRO_WIN32 REQUIRED IMPORTED_TARGET cairo-win32)
+    target_sources(overlay_timer_core PRIVATE src/backend_win32.c)
+    target_compile_definitions(overlay_timer_core PUBLIC WITH_WIN32)
+    target_link_libraries(overlay_timer_core PUBLIC
+        PkgConfig::CAIRO_WIN32 user32 gdi32)
+endif()
+
+if(WIN32)
+    # Windows 10 APIs (AF_UNIX, WSAPoll); Winsock for the IPC.
+    target_compile_definitions(overlay_timer_core PUBLIC _WIN32_WINNT=0x0A00)
+    target_link_libraries(overlay_timer_core PUBLIC ws2_32)
 endif()
 
 # ------------------------------------------------------------------

@@ -28,6 +28,7 @@ typedef struct {
     config_t cfg;
     otimer_t  timer;
     audio_t  *audio;
+    overlay_backend_t *backend;
     volatile sig_atomic_t stop_requested;
 } daemon_state_t;
 
@@ -77,17 +78,37 @@ static void build_frame(daemon_state_t *st, overlay_frame_t *f, bool visible) {
 
 static void handle_set(daemon_state_t *st, char *args, char *resp, size_t rsz) {
     int applied = 0, failed = 0;
+    bool screens_changed = false, backend_rejected = false;
     char *save = NULL;
     for (char *tok = str_tok(args, " \t", &save); tok;
          tok = str_tok(NULL, " \t", &save)) {
         char *eq = strchr(tok, '=');
         if (!eq) { failed++; continue; }
         *eq = '\0';
-        if (config_set_kv(&st->cfg, tok, eq + 1)) applied++;
-        else failed++;
+        /* The window system cannot be switched under a running overlay. */
+        if (str_ieq(tok, "backend")) { backend_rejected = true; failed++; continue; }
+        if (config_set_kv(&st->cfg, tok, eq + 1)) {
+            applied++;
+            if (str_ieq(tok, "screen")) screens_changed = true;
+        } else {
+            failed++;
+        }
     }
-    if (failed) snprintf(resp, rsz, "ERR %d applied, %d invalid", applied, failed);
-    else        snprintf(resp, rsz, "OK %d applied", applied);
+
+    /* Rebuild the overlays on the new screens right away. */
+    char screens_msg[256] = "";
+    if (screens_changed && st->backend)
+        backend_set_screens(st->backend, st->cfg.screens, st->cfg.n_screens,
+                            screens_msg, sizeof screens_msg);
+
+    size_t off;
+    if (failed) off = (size_t)snprintf(resp, rsz, "ERR %d applied, %d invalid", applied, failed);
+    else        off = (size_t)snprintf(resp, rsz, "OK %d applied", applied);
+    if (backend_rejected && off < rsz)
+        off += (size_t)snprintf(resp + off, rsz - off, "; %s",
+                                _("backend cannot be changed while running"));
+    if (screens_msg[0] && off < rsz)
+        snprintf(resp + off, rsz - off, "; %s", screens_msg);
     log_info(_("reconfigure: %d applied, %d invalid"), applied, failed);
 }
 
@@ -153,8 +174,8 @@ int daemon_run(const cli_opts_t *opts) {
         config_free(&st.cfg);
         return 1;
     }
-    log_info(_("daemon: backend '%s' ready (%d screen(s))"),
-             backend_name(backend), st.cfg.n_screens);
+    st.backend = backend;
+    log_info(_("daemon: backend '%s' ready"), backend_name(backend));
 
     st.audio = audio_init(st.cfg.sounds_dir, st.cfg.enable_sound);
 
@@ -230,6 +251,8 @@ int daemon_run(const cli_opts_t *opts) {
         /* Backends without a pollable fd (macOS, Win32) are pumped every iteration. */
         if (backend_fd < 0 || (pfds[1].revents & POLLIN))
             backend_pump_events(backend);
+        /* Debounced overlay rebuild after a monitor connect/disconnect. */
+        backend_tick(backend);
 
         if (pfds[0].revents & POLLIN) {
             char line[1024], resp[1024];
@@ -292,6 +315,7 @@ int daemon_run(const cli_opts_t *opts) {
         log_info(_("daemon: received signal %d, shutting down"), (int)g_signal);
 
     audio_shutdown(st.audio);
+    st.backend = NULL;
     backend_destroy(backend);
     ipc_server_stop(&srv);
     config_free(&st.cfg);

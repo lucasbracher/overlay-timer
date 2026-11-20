@@ -11,6 +11,7 @@
 
 #include "i18n.h"
 #include "render.h"
+#include "util.h"
 
 typedef struct {
     xcb_window_t win;
@@ -27,8 +28,16 @@ typedef struct {
     uint8_t argb_depth;
     xcb_colormap_t colormap;
 
-    x11_overlay_t *overlays;
+    /* RandR change notifications (monitor hot-plug). */
+    bool has_randr;
+    uint8_t randr_event_base;
+    topo_watch_t topo;
+
+    x11_overlay_t overlays[MAX_SCREENS];
     int n_overlays;
+
+    int requested[MAX_SCREENS];
+    int n_requested;
 
     char *last_text;
     char *last_label;
@@ -97,9 +106,14 @@ static int enumerate_monitors(xcb_connection_t *conn, xcb_screen_t *screen,
         free(r);
     }
     if (n == 0) {
+        /* No RandR monitors: use the root window (its current size; the
+         * values in the connection setup are stale after a change). */
         xs[0] = 0; ys[0] = 0;
         ws[0] = screen->width_in_pixels;
         hs[0] = screen->height_in_pixels;
+        xcb_get_geometry_reply_t *g = xcb_get_geometry_reply(
+            conn, xcb_get_geometry(conn, screen->root), NULL);
+        if (g) { ws[0] = g->width; hs[0] = g->height; free(g); }
         n = 1;
     }
     return n;
@@ -143,25 +157,99 @@ static void x11_pump(void *impl) {
     while ((ev = xcb_poll_for_event(b->conn))) {
         uint8_t type = ev->response_type & ~0x80;
         if (type == XCB_EXPOSE) need_redraw = true;
+        else if (b->has_randr &&
+                 (type == b->randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY ||
+                  type == b->randr_event_base + XCB_RANDR_NOTIFY))
+            topo_mark(&b->topo);
         free(ev);
     }
     if (need_redraw && b->has_last)
         draw_all(b, &b->last);
 }
 
+static void destroy_overlays(x11_backend_t *b) {
+    for (int i = 0; i < b->n_overlays; i++) {
+        x11_overlay_t *o = &b->overlays[i];
+        if (o->cr) cairo_destroy(o->cr);
+        if (o->surface) cairo_surface_destroy(o->surface);
+        if (o->win) xcb_destroy_window(b->conn, o->win);
+        memset(o, 0, sizeof *o);
+    }
+    b->n_overlays = 0;
+}
+
+static void create_overlay(x11_backend_t *b, x11_overlay_t *o,
+                           int x, int y, int w, int h) {
+    o->x = x; o->y = y; o->w = w; o->h = h;
+    o->min_dim = o->w < o->h ? o->w : o->h;
+
+    o->win = xcb_generate_id(b->conn);
+    uint32_t mask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL |
+                    XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK |
+                    XCB_CW_COLORMAP;
+    uint32_t values[5] = { 0, 0, 1, XCB_EVENT_MASK_EXPOSURE, b->colormap };
+
+    xcb_create_window(b->conn, b->argb_depth, o->win, b->screen->root,
+                      (int16_t)o->x, (int16_t)o->y,
+                      (uint16_t)o->w, (uint16_t)o->h, 0,
+                      XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                      b->argb_visual->visual_id, mask, values);
+
+    set_window_hints(b->conn, o->win);
+    set_input_passthrough(b->conn, o->win);
+    xcb_map_window(b->conn, o->win);
+
+    uint32_t stack = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(b->conn, o->win, XCB_CONFIG_WINDOW_STACK_MODE, &stack);
+
+    o->surface = cairo_xcb_surface_create(b->conn, o->win, b->argb_visual,
+                                          o->w, o->h);
+    o->cr = cairo_create(o->surface);
+}
+
+/* Throws away the overlays and recreates them from a fresh monitor list. */
+static void build_overlays(x11_backend_t *b, screen_layout_t *out) {
+    destroy_overlays(b);
+
+    int xs[MAX_SCREENS * 2], ys[MAX_SCREENS * 2], ws[MAX_SCREENS * 2], hs[MAX_SCREENS * 2];
+    int nmon = enumerate_monitors(b->conn, b->screen, xs, ys, ws, hs,
+                                  MAX_SCREENS * 2);
+
+    screen_layout_t l;
+    backend_resolve_screens(b->requested, b->n_requested, nmon, &l);
+    for (int i = 0; i < l.n_shown; i++) {
+        int idx = l.shown[i];
+        create_overlay(b, &b->overlays[b->n_overlays++],
+                       xs[idx], ys[idx], ws[idx], hs[idx]);
+    }
+    xcb_flush(b->conn);
+
+    backend_log_layout("x11", b->requested, b->n_requested, &l);
+    if (out) *out = l;
+}
+
+static void x11_set_screens(void *impl, const int *screens, int n,
+                            screen_layout_t *out) {
+    x11_backend_t *b = impl;
+    if (n > MAX_SCREENS) n = MAX_SCREENS;
+    memcpy(b->requested, screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, out);
+}
+
+static bool x11_tick(void *impl) {
+    x11_backend_t *b = impl;
+    if (!topo_due(&b->topo)) return false;
+    log_info(_("x11: monitor configuration changed"));
+    build_overlays(b, NULL);
+    return true;
+}
+
 static void x11_destroy(void *impl) {
     x11_backend_t *b = impl;
     if (!b) return;
-    if (b->overlays) {
-        for (int i = 0; i < b->n_overlays; i++) {
-            x11_overlay_t *o = &b->overlays[i];
-            if (o->cr) cairo_destroy(o->cr);
-            if (o->surface) cairo_surface_destroy(o->surface);
-            if (o->win) xcb_destroy_window(b->conn, o->win);
-        }
-        free(b->overlays);
-    }
     if (b->conn) {
+        destroy_overlays(b);
         if (b->colormap) xcb_free_colormap(b->conn, b->colormap);
         xcb_flush(b->conn);
         xcb_disconnect(b->conn);
@@ -175,6 +263,8 @@ static const backend_vtable_t X11_VT = {
     .get_fd = x11_get_fd,
     .pump = x11_pump,
     .render = x11_render,
+    .set_screens = x11_set_screens,
+    .tick = x11_tick,
     .destroy = x11_destroy,
     .name = "x11",
 };
@@ -208,51 +298,27 @@ overlay_backend_t *backend_create_x11(const config_t *cfg, char **err) {
     xcb_create_colormap(b->conn, XCB_COLORMAP_ALLOC_NONE, b->colormap,
                         b->screen->root, b->argb_visual->visual_id);
 
-    int xs[MAX_SCREENS * 2], ys[MAX_SCREENS * 2], ws[MAX_SCREENS * 2], hs[MAX_SCREENS * 2];
-    int nmon = enumerate_monitors(b->conn, b->screen, xs, ys, ws, hs,
-                                  MAX_SCREENS * 2);
-
-    b->overlays = calloc(cfg->n_screens, sizeof(x11_overlay_t));
-    b->n_overlays = 0;
-
-    for (int i = 0; i < cfg->n_screens; i++) {
-        int idx = cfg->screens[i];
-        if (idx < 0 || idx >= nmon) {
-            fprintf(stderr, _("warning: screen index %d out of range (have %d)\n"),
-                    idx, nmon);
-            continue;
-        }
-
-        x11_overlay_t *o = &b->overlays[b->n_overlays];
-        o->x = xs[idx]; o->y = ys[idx]; o->w = ws[idx]; o->h = hs[idx];
-        o->min_dim = o->w < o->h ? o->w : o->h;
-
-        o->win = xcb_generate_id(b->conn);
-        uint32_t mask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL |
-                        XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK |
-                        XCB_CW_COLORMAP;
-        uint32_t values[5] = { 0, 0, 1, XCB_EVENT_MASK_EXPOSURE, b->colormap };
-
-        xcb_create_window(b->conn, b->argb_depth, o->win, b->screen->root,
-                          (int16_t)o->x, (int16_t)o->y,
-                          (uint16_t)o->w, (uint16_t)o->h, 0,
-                          XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                          b->argb_visual->visual_id, mask, values);
-
-        set_window_hints(b->conn, o->win);
-        set_input_passthrough(b->conn, o->win);
-        xcb_map_window(b->conn, o->win);
-
-        uint32_t stack = XCB_STACK_MODE_ABOVE;
-        xcb_configure_window(b->conn, o->win, XCB_CONFIG_WINDOW_STACK_MODE, &stack);
-
-        o->surface = cairo_xcb_surface_create(b->conn, o->win, b->argb_visual,
-                                              o->w, o->h);
-        o->cr = cairo_create(o->surface);
-        b->n_overlays++;
+    /* Ask for RandR notifications so monitor hot-plug is detected. */
+    const xcb_query_extension_reply_t *ext =
+        xcb_get_extension_data(b->conn, &xcb_randr_id);
+    if (ext && ext->present) {
+        xcb_randr_query_version_reply_t *v = xcb_randr_query_version_reply(
+            b->conn, xcb_randr_query_version(b->conn, 1, 5), NULL);
+        free(v);
+        b->has_randr = true;
+        b->randr_event_base = ext->first_event;
+        xcb_randr_select_input(b->conn, b->screen->root,
+                               XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
+                               XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
+                               XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE);
+    } else {
+        log_warn(_("x11: RandR not available; monitor changes will not be detected"));
     }
 
-    xcb_flush(b->conn);
+    int n = cfg->n_screens < MAX_SCREENS ? cfg->n_screens : MAX_SCREENS;
+    memcpy(b->requested, cfg->screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, NULL);
 
     if (b->n_overlays == 0) {
         if (err) *err = dupf(_("no valid screen to display on"));

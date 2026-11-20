@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: overlay-timer 0.1.0\n"
-"Report-Msgid-Bugs-To: lucas@example.com\n"
-"POT-Creation-Date: 2026-11-14 19:20-0300\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-20 11:46-0300\n"
 "PO-Revision-Date: 2026-11-14 19:25-0300\n"
 "Last-Translator: overlay-timer\n"
 "Language-Team: Portuguese (Brazil)\n"
@@ -24,7 +24,15 @@ msgstr "áudio: nenhum driver libao padrão; som desativado"
 msgid "audio: could not start playback thread"
 msgstr "áudio: não foi possível iniciar a thread de reprodução"
 
-#: src/backend.c:44
+#: src/backend.c:50
+msgid "Win32 backend not built"
+msgstr "backend Win32 não foi compilado"
+
+#: src/backend.c:59
+msgid "macOS backend not built"
+msgstr "backend macOS não foi compilado"
+
+#: src/backend.c:70
 #, c-format
 msgid ""
 "warning: Wayland session detected but Wayland backend not built; trying X11 "
@@ -33,31 +41,56 @@ msgstr ""
 "aviso: sessão Wayland detectada, mas o backend Wayland não foi compilado; "
 "tentando X11 (XWayland).\n"
 
-#: src/backend.c
-msgid "macOS backend not built"
-msgstr "backend macOS não foi compilado"
-
-#: src/backend.c:48
+#: src/backend.c:74
 msgid "Wayland backend not built"
 msgstr "backend Wayland não foi compilado"
 
-#: src/backend.c:58
+#: src/backend.c:84
 msgid "X11 backend not built"
 msgstr "backend X11 não foi compilado"
 
-#: src/backend.c:63
+#: src/backend.c:89
 msgid "no suitable backend available"
 msgstr "nenhum backend adequado disponível"
 
-#: src/backend_wayland.c:296
+#: src/backend.c:144
+msgid "no monitor available; waiting for one"
+msgstr "nenhum monitor disponível; aguardando"
+
+#: src/backend.c:148
+msgid "showing on screen(s) "
+msgstr "exibindo na(s) tela(s) "
+
+#: src/backend.c:152
+#, c-format
+msgid " (%d monitor(s))"
+msgstr " (%d monitor(es))"
+
+#: src/backend.c:165
+msgid "; unavailable: "
+msgstr "; indisponível(is): "
+
+#: src/backend.c:169
+msgid "; falling back to screen 0"
+msgstr "; usando a tela 0 como alternativa"
+
+#: src/backend.c:224
+msgid "this backend cannot change screens"
+msgstr "este backend não consegue trocar de tela"
+
+#: src/backend_wayland.c:392
+msgid "wayland: output configuration changed"
+msgstr "wayland: configuração de saídas alterada"
+
+#: src/backend_wayland.c:434
 msgid "cannot connect to Wayland display"
 msgstr "não foi possível conectar ao display Wayland"
 
-#: src/backend_wayland.c:307
+#: src/backend_wayland.c:445
 msgid "Wayland compositor missing wl_compositor/wl_shm"
 msgstr "o compositor Wayland não oferece wl_compositor/wl_shm"
 
-#: src/backend_wayland.c:312
+#: src/backend_wayland.c:450
 msgid ""
 "compositor does not support wlr-layer-shell (e.g. GNOME/Mutter): Wayland "
 "overlay unsupported"
@@ -65,29 +98,49 @@ msgstr ""
 "o compositor não suporta wlr-layer-shell (ex.: GNOME/Mutter): overlay "
 "Wayland não suportado"
 
-#: src/backend_wayland.c:321 src/backend_x11.c:221
-#, c-format
-msgid "warning: screen index %d out of range (have %d)\n"
-msgstr "aviso: índice de tela %d fora do intervalo (há %d)\n"
-
-#: src/backend_wayland.c:361 src/backend_x11.c:258
+#: src/backend_wayland.c:462 src/backend_win32.c:308 src/backend_x11.c:324
+#: src/backend_macos.m:294
 msgid "no valid screen to display on"
 msgstr "nenhuma tela válida para exibir"
 
-#: src/backend_x11.c:189
+#: src/backend_win32.c:217
+msgid "win32: cannot create overlay window"
+msgstr "win32: não foi possível criar a janela do overlay"
+
+#: src/backend_win32.c:245
+msgid "win32: monitor configuration changed"
+msgstr "win32: configuração de monitores alterada"
+
+#: src/backend_win32.c:286
+msgid "cannot register window class"
+msgstr "não foi possível registrar a classe de janela"
+
+#: src/backend_win32.c:299
+msgid "win32: cannot create helper window; monitor changes may not be detected"
+msgstr "win32: não foi possível criar a janela auxiliar; mudanças de monitor podem não ser detectadas"
+
+#: src/backend_x11.c:243
+msgid "x11: monitor configuration changed"
+msgstr "x11: configuração de monitores alterada"
+
+#: src/backend_x11.c:279
 msgid "cannot connect to X server (is DISPLAY set?)"
 msgstr "não foi possível conectar ao servidor X (DISPLAY está definido?)"
 
-#: src/backend_x11.c:201
+#: src/backend_x11.c:291
 msgid "no 32-bit ARGB visual found (need a compositor)"
 msgstr "nenhum visual ARGB de 32 bits encontrado (é necessário um compositor)"
 
-#: src/cli.c:77
+#: src/backend_x11.c:315
+msgid "x11: RandR not available; monitor changes will not be detected"
+msgstr "x11: RandR indisponível; mudanças de monitor não serão detectadas"
+
+#: src/cli.c:79
 #, c-format
 msgid "Usage: %s [options]\n"
 msgstr "Uso: %s [opções]\n"
 
-#: src/cli.c:79
+#: src/cli.c:81
 #, c-format
 msgid ""
 "\n"
@@ -141,7 +194,8 @@ msgstr ""
 "Tempo / modo:\n"
 "  -t, --time <MM:SS|HH:MM:SS>  inicia uma contagem regressiva\n"
 "      --pomodoro <N>           inicia N pomodoros\n"
-"      --sync                   com --pomodoro: alinha os ciclos com o relógio\n"
+"      --sync                   com --pomodoro: alinha os ciclos com o "
+"relógio\n"
 "                               (:00 e :30 com o padrão de 25+5 min)\n"
 "      --format <hhmmss|mmss>   formato de exibição (o tempo informado tem "
 "precedência)\n"
@@ -182,213 +236,237 @@ msgstr ""
 "  -h, --help\n"
 "  -V, --version\n"
 
-#: src/cli.c:142
+#: src/cli.c:147
 #, c-format
 msgid "error: invalid time: '%s'\n"
 msgstr "erro: tempo inválido: '%s'\n"
 
-#: src/cli.c:153
+#: src/cli.c:158
 #, c-format
 msgid "error: invalid pomodoro count: '%s'\n"
 msgstr "erro: quantidade de pomodoros inválida: '%s'\n"
 
-#: src/cli.c:166
+#: src/cli.c:174
 #, c-format
 msgid "error: alpha must be 0-100\n"
 msgstr "erro: alpha deve estar entre 0 e 100\n"
 
-#: src/cli.c:171
+#: src/cli.c:179
 #, c-format
 msgid "error: size must be 0-100\n"
 msgstr "erro: size deve estar entre 0 e 100\n"
 
-#: src/cli.c:179
+#: src/cli.c:187
 #, c-format
 msgid "error: corner must be tl|tr|bl|br\n"
 msgstr "erro: corner deve ser tl|tr|bl|br\n"
 
-#: src/cli.c:185
+#: src/cli.c:193
 #, c-format
 msgid "error: invalid screen list: '%s'\n"
 msgstr "erro: lista de telas inválida: '%s'\n"
 
-#: src/cli.c:192
+#: src/cli.c:200
 #, c-format
 msgid "error: format must be hhmmss|mmss\n"
 msgstr "erro: format deve ser hhmmss|mmss\n"
 
-#: src/cli.c:197
+#: src/cli.c:205
 #, c-format
 msgid "error: invalid pomodoro-minutes\n"
 msgstr "erro: pomodoro-minutes inválido\n"
 
-#: src/cli.c:202
+#: src/cli.c:210
 #, c-format
 msgid "error: invalid break-minutes\n"
 msgstr "erro: break-minutes inválido\n"
 
-#: src/cli.c:207
+#: src/cli.c:215
 #, c-format
 msgid "error: invalid long-break-minutes\n"
 msgstr "erro: long-break-minutes inválido\n"
 
-#: src/cli.c:212
+#: src/cli.c:220
 #, c-format
 msgid "error: invalid long-break-every\n"
 msgstr "erro: long-break-every inválido\n"
 
-#: src/cli.c:253
+#: src/cli.c:261
 #, c-format
 msgid "error: unexpected argument: '%s'\n"
 msgstr "erro: argumento inesperado: '%s'\n"
 
-#: src/config.c:196
+#: src/cli.c:266
+#, c-format
+msgid "error: --sync can only be used with --pomodoro\n"
+msgstr "erro: --sync só pode ser usado com --pomodoro\n"
+
+#: src/config.c:200
 #, c-format
 msgid "%s:%d: invalid value for '%s': '%s'"
 msgstr "%s:%d: valor inválido para '%s': '%s'"
 
-#: src/config.c:259
+#: src/config.c:263
 #, c-format
 msgid "%s:%d: unknown key '%s' in section '[%s]'"
 msgstr "%s:%d: chave desconhecida '%s' na seção '[%s]'"
 
-#: src/config.c:280
+#: src/config.c:284
 #, c-format
 msgid "%s:%d: malformed section"
 msgstr "%s:%d: seção malformada"
 
-#: src/config.c:287
+#: src/config.c:291
 #, c-format
 msgid "%s:%d: missing '='"
 msgstr "%s:%d: '=' ausente"
 
-#: src/config.c:371
+#: src/config.c:375
 #, c-format
 msgid "created default config at %s"
 msgstr "configuração padrão criada em %s"
 
-#: src/daemon.c:83
+#: src/daemon.c:109
+msgid "backend cannot be changed while running"
+msgstr "o backend não pode ser alterado durante a execução"
+
+#: src/daemon.c:112
 #, c-format
 msgid "reconfigure: %d applied, %d invalid"
 msgstr "reconfiguração: %d aplicadas, %d inválidas"
 
-#: src/daemon.c:99
+#: src/daemon.c:128
 msgid "paused"
 msgstr "pausado"
 
-#: src/daemon.c:100
+#: src/daemon.c:129
 msgid "resumed"
 msgstr "retomado"
 
-#: src/daemon.c:101
+#: src/daemon.c:130
 msgid "stop requested via IPC"
 msgstr "parada solicitada via IPC"
 
-#: src/daemon.c:126
+#: src/daemon.c:155
 #, c-format
 msgid "daemon: starting %d pomodoro(s)"
 msgstr "daemon: iniciando %d pomodoro(s)"
 
-#: src/daemon.c:129
+#: src/daemon.c:158
 #, c-format
 msgid "daemon: starting countdown of %ld s"
 msgstr "daemon: iniciando contagem regressiva de %ld s"
 
-#: src/daemon.c:134
+#: src/daemon.c:163
 msgid "daemon: could not start IPC server"
 msgstr "daemon: não foi possível iniciar o servidor IPC"
 
-#: src/daemon.c:142
+#: src/daemon.c:171
 #, c-format
 msgid "daemon: backend init failed: %s"
 msgstr "daemon: falha ao inicializar o backend: %s"
 
-#: src/daemon.c:148
+#: src/daemon.c:178
 #, c-format
-msgid "daemon: backend '%s' ready (%d screen(s))"
-msgstr "daemon: backend '%s' pronto (%d tela(s))"
+msgid "daemon: backend '%s' ready"
+msgstr "daemon: backend '%s' pronto"
 
-#: src/daemon.c:188
+#: src/daemon.c:210
+#, c-format
+msgid "daemon: synced with clock (%ld s left in %s)"
+msgstr "daemon: sincronizado com o relógio (%ld s restantes em %s)"
+
+#: src/daemon.c:246
 #, c-format
 msgid "poll failed: %s"
 msgstr "poll falhou: %s"
 
-#: src/daemon.c:221
+#: src/daemon.c:282
 msgid "pomodoro ended -> break"
 msgstr "pomodoro terminou -> pausa"
 
-#: src/daemon.c:225
+#: src/daemon.c:286
 msgid "break ended -> pomodoro"
 msgstr "pausa terminou -> pomodoro"
 
-#: src/daemon.c:229
+#: src/daemon.c:290
 msgid "timer finished"
 msgstr "timer finalizado"
 
-#: src/daemon.c:254
+#: src/daemon.c:315
 #, c-format
 msgid "daemon: received signal %d, shutting down"
 msgstr "daemon: sinal %d recebido, encerrando"
 
-#: src/ipc.c:44
+#: src/ipc.c:52 src/ipc_win32.c:105
 #, c-format
 msgid "socket path too long: %s"
 msgstr "caminho do socket longo demais: %s"
 
-#: src/ipc.c:96
+#: src/ipc.c:104
 #, c-format
 msgid "cannot open lockfile %s: %s"
 msgstr "não foi possível abrir o lockfile %s: %s"
 
-#: src/ipc.c:104
+#: src/ipc.c:112
 #, c-format
 msgid "flock failed: %s"
 msgstr "flock falhou: %s"
 
-#: src/ipc.c:120
+#: src/ipc.c:128 src/ipc_win32.c:164
 #, c-format
 msgid "socket() failed: %s"
 msgstr "socket() falhou: %s"
 
-#: src/ipc.c:128
+#: src/ipc.c:136 src/ipc_win32.c:172
 #, c-format
 msgid "bind() failed on %s: %s"
 msgstr "bind() falhou em %s: %s"
 
-#: src/ipc.c:132
+#: src/ipc.c:140 src/ipc_win32.c:176
 #, c-format
 msgid "listen() failed: %s"
 msgstr "listen() falhou: %s"
 
-#: src/ipc.c:161
+#: src/ipc.c:169 src/ipc_win32.c:200
 #, c-format
 msgid "accept() failed: %s"
 msgstr "accept() falhou: %s"
 
-#: src/ipc.c:211 src/main.c:48
+#: src/ipc.c:219 src/ipc_win32.c:251 src/main.c:48
 #, c-format
 msgid "no running timer"
 msgstr "nenhum timer em execução"
 
-#: src/ipc.c:219
+#: src/ipc.c:227 src/ipc_win32.c:259
 #, c-format
 msgid "write failed"
 msgstr "falha na escrita"
 
-#: src/ipc.c:227
+#: src/ipc.c:235 src/ipc_win32.c:267
 #, c-format
 msgid "read failed"
 msgstr "falha na leitura"
 
-#: src/ipc.c:241 src/ipc.c:248
+#: src/ipc.c:249 src/ipc.c:256
 #, c-format
 msgid "fork failed: %s"
 msgstr "fork falhou: %s"
 
-#: src/ipc.c:244
+#: src/ipc.c:252
 #, c-format
 msgid "setsid failed: %s"
 msgstr "setsid falhou: %s"
+
+#: src/ipc_win32.c:151
+#, c-format
+msgid "cannot create mutex: %s"
+msgstr "não foi possível criar o mutex: %s"
+
+#: src/ipc_win32.c:291 src/ipc_win32.c:311
+#, c-format
+msgid "CreateProcess failed: %s"
+msgstr "CreateProcess falhou: %s"
 
 #: src/main.c:48
 #, c-format
@@ -435,32 +513,10 @@ msgstr "overlay-timer iniciado.\n"
 msgid "error: failed to daemonize.\n"
 msgstr "erro: falha ao daemonizar.\n"
 
-#: src/cli.c
-#, c-format
-msgid "error: --sync can only be used with --pomodoro\n"
-msgstr "erro: --sync só pode ser usado com --pomodoro\n"
+#: src/backend_macos.m:254
+msgid "macos: screen configuration changed"
+msgstr "macos: configuração de telas alterada"
 
-#: src/daemon.c
-#, c-format
-msgid "daemon: synced with clock (%ld s left in %s)"
-msgstr "daemon: sincronizado com o relógio (%ld s restantes em %s)"
-
-#: src/backend.c
-msgid "Win32 backend not built"
-msgstr "backend Win32 não foi compilado"
-
-#: src/ipc_win32.c
-msgid "cannot create mutex: %s"
-msgstr "não foi possível criar o mutex: %s"
-
-#: src/ipc_win32.c
-msgid "CreateProcess failed: %s"
-msgstr "CreateProcess falhou: %s"
-
-#: src/backend_win32.c
-msgid "cannot register window class"
-msgstr "não foi possível registrar a classe de janela"
-
-#: src/backend_win32.c
-msgid "cannot create overlay window"
-msgstr "não foi possível criar a janela de overlay"
+#: src/backend_macos.m:291
+msgid "macos: cannot register display reconfiguration callback"
+msgstr "macos: não foi possível registrar o callback de reconfiguração de telas"

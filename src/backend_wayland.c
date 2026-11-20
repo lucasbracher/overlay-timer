@@ -12,22 +12,28 @@
 
 #include "i18n.h"
 #include "render.h"
+#include "util.h"
 #include "wlr-layer-shell-client-protocol.h"
 
 /* ------------------------------------------------------------------ */
-/* Estruturas                                                         */
+/* Structures                                                         */
 /* ------------------------------------------------------------------ */
 
 #define MAX_OUTPUTS (MAX_SCREENS * 2)
 
+typedef struct wl_backend wl_backend_t;
+
+/* Outputs come and go at runtime (hot-plug), so each one is heap-allocated:
+ * its address is the listener data and must stay valid while the array of
+ * pointers is compacted. */
 typedef struct {
+    wl_backend_t *owner;
     struct wl_output *output;
+    uint32_t global_name;   /* registry name, to match global_remove */
     int32_t width, height;  /* from the mode event */
     int32_t scale;
-    bool have_mode;
+    bool done;              /* initial burst of output events finished */
 } wl_output_info_t;
-
-typedef struct wl_backend wl_backend_t;
 
 typedef struct {
     wl_backend_t *owner;
@@ -36,7 +42,7 @@ typedef struct {
     int w, h, min_dim;
     bool configured;
 
-    /* Buffer compartilhado. */
+    /* Shared buffer. */
     int   buf_fd;
     void *buf_data;
     size_t buf_size;
@@ -51,11 +57,17 @@ struct wl_backend {
     struct wl_shm *shm;
     struct zwlr_layer_shell_v1 *layer_shell;
 
-    wl_output_info_t outputs[MAX_OUTPUTS];
+    wl_output_info_t *outputs[MAX_OUTPUTS];
     int n_outputs;
 
     wl_overlay_t overlays[MAX_SCREENS];
     int n_overlays;
+
+    int requested[MAX_SCREENS];
+    int n_requested;
+
+    bool ready;          /* startup done: output changes now mark dirty */
+    topo_watch_t topo;
 
     char *last_text, *last_label;
     overlay_frame_t last;
@@ -65,7 +77,7 @@ struct wl_backend {
 static char *dupf(const char *s) { return s ? strdup(s) : NULL; }
 
 /* ------------------------------------------------------------------ */
-/* Buffer SHM                                                         */
+/* SHM buffer                                                         */
 /* ------------------------------------------------------------------ */
 
 static int create_shm_file(size_t size) {
@@ -127,10 +139,13 @@ static void ls_configure(void *data, struct zwlr_layer_surface_v1 *ls,
         draw_overlay(o, &o->owner->last);
 }
 
+/* The compositor closed the surface (typically: its output went away). It
+ * must not be used again; the debounced rebuild destroys it. */
 static void ls_closed(void *data, struct zwlr_layer_surface_v1 *ls) {
     (void)ls;
     wl_overlay_t *o = data;
     o->configured = false;
+    topo_mark(&o->owner->topo);
 }
 
 static const struct zwlr_layer_surface_v1_listener LS_LISTENER = {
@@ -153,7 +168,7 @@ static void draw_overlay(wl_overlay_t *o, const overlay_frame_t *f) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Registry                                                           */
+/* Outputs                                                            */
 /* ------------------------------------------------------------------ */
 
 static void output_mode(void *data, struct wl_output *out, uint32_t flags,
@@ -163,7 +178,6 @@ static void output_mode(void *data, struct wl_output *out, uint32_t flags,
     if (flags & WL_OUTPUT_MODE_CURRENT) {
         info->width = w;
         info->height = h;
-        info->have_mode = true;
     }
 }
 static void output_geometry(void *d, struct wl_output *o, int32_t x, int32_t y,
@@ -176,7 +190,15 @@ static void output_scale(void *data, struct wl_output *o, int32_t factor) {
     wl_output_info_t *info = data;
     info->scale = factor;
 }
-static void output_done(void *d, struct wl_output *o) { (void)d;(void)o; }
+/* Mode/size changes of an existing output are handled by the compositor
+ * re-configuring the layer surface; only a *new* output needs a rebuild. */
+static void output_done(void *data, struct wl_output *o) {
+    (void)o;
+    wl_output_info_t *info = data;
+    if (info->done) return;
+    info->done = true;
+    if (info->owner->ready) topo_mark(&info->owner->topo);
+}
 
 static const struct wl_output_listener OUTPUT_LISTENER = {
     .geometry = output_geometry,
@@ -184,6 +206,16 @@ static const struct wl_output_listener OUTPUT_LISTENER = {
     .done = output_done,
     .scale = output_scale,
 };
+
+static void output_free(wl_output_info_t *info) {
+    if (!info) return;
+    if (info->output) wl_output_destroy(info->output);
+    free(info);
+}
+
+/* ------------------------------------------------------------------ */
+/* Registry                                                           */
+/* ------------------------------------------------------------------ */
 
 static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
                             const char *iface, uint32_t version) {
@@ -197,23 +229,114 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
         uint32_t v = version < 4 ? version : 4;
         b->layer_shell = wl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, v);
     } else if (strcmp(iface, wl_output_interface.name) == 0) {
-        if (b->n_outputs < MAX_OUTPUTS) {
-            wl_output_info_t *info = &b->outputs[b->n_outputs];
-            info->scale = 1;
-            info->output = wl_registry_bind(reg, name, &wl_output_interface,
-                                            version < 2 ? version : 2);
-            wl_output_add_listener(info->output, &OUTPUT_LISTENER, info);
-            b->n_outputs++;
-        }
+        if (b->n_outputs >= MAX_OUTPUTS) return;
+        wl_output_info_t *info = calloc(1, sizeof *info);
+        if (!info) return;
+        info->owner = b;
+        info->global_name = name;
+        info->scale = 1;
+        info->output = wl_registry_bind(reg, name, &wl_output_interface,
+                                        version < 2 ? version : 2);
+        wl_output_add_listener(info->output, &OUTPUT_LISTENER, info);
+        b->outputs[b->n_outputs++] = info;
+        /* Version 1 has no `done` event: treat it as complete right away. */
+        if (version < 2) output_done(info, info->output);
     }
 }
-static void registry_global_remove(void *d, struct wl_registry *r, uint32_t n) {
-    (void)d;(void)r;(void)n;
+
+static void registry_global_remove(void *data, struct wl_registry *r,
+                                   uint32_t name) {
+    (void)r;
+    wl_backend_t *b = data;
+    for (int i = 0; i < b->n_outputs; i++) {
+        if (b->outputs[i]->global_name != name) continue;
+        /* Overlays on this output are destroyed by the rebuild; the
+         * compositor has already closed (or will close) their surfaces. */
+        output_free(b->outputs[i]);
+        memmove(&b->outputs[i], &b->outputs[i + 1],
+                sizeof(b->outputs[0]) * (size_t)(b->n_outputs - i - 1));
+        b->n_outputs--;
+        topo_mark(&b->topo);
+        return;
+    }
 }
+
 static const struct wl_registry_listener REGISTRY_LISTENER = {
     .global = registry_global,
     .global_remove = registry_global_remove,
 };
+
+/* ------------------------------------------------------------------ */
+/* Overlays                                                           */
+/* ------------------------------------------------------------------ */
+
+static void destroy_overlays(wl_backend_t *b) {
+    for (int i = 0; i < b->n_overlays; i++) {
+        wl_overlay_t *o = &b->overlays[i];
+        overlay_free_buffer(o);
+        if (o->layer) zwlr_layer_surface_v1_destroy(o->layer);
+        if (o->surface) wl_surface_destroy(o->surface);
+        memset(o, 0, sizeof *o);
+        o->buf_fd = -1;
+    }
+    b->n_overlays = 0;
+}
+
+static void create_overlay(wl_backend_t *b, wl_overlay_t *o,
+                           const wl_output_info_t *out) {
+    memset(o, 0, sizeof *o);
+    o->owner = b;
+    o->buf_fd = -1;
+    o->w = out->width;
+    o->h = out->height;
+    o->min_dim = (o->w && o->h) ? (o->w < o->h ? o->w : o->h) : 0;
+
+    o->surface = wl_compositor_create_surface(b->compositor);
+    o->layer = zwlr_layer_shell_v1_get_layer_surface(
+        b->layer_shell, o->surface, out->output,
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "overlay-timer");
+    zwlr_layer_surface_v1_add_listener(o->layer, &LS_LISTENER, o);
+
+    /* Anchor to all edges => covers the entire output. */
+    zwlr_layer_surface_v1_set_anchor(
+        o->layer,
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+    zwlr_layer_surface_v1_set_size(o->layer, 0, 0);
+    zwlr_layer_surface_v1_set_exclusive_zone(o->layer, -1);
+    zwlr_layer_surface_v1_set_keyboard_interactivity(
+        o->layer, ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
+
+    /* Empty input region => click-through. */
+    struct wl_region *empty = wl_compositor_create_region(b->compositor);
+    wl_surface_set_input_region(o->surface, empty);
+    wl_region_destroy(empty);
+
+    wl_surface_commit(o->surface); /* initial commit without buffer */
+}
+
+/* Throws away the overlays and recreates them on the current outputs. The
+ * surfaces are drawn when their `configure` arrives (no roundtrip here). */
+static void build_overlays(wl_backend_t *b, screen_layout_t *out) {
+    destroy_overlays(b);
+
+    /* Screen indices count only outputs whose info is complete. */
+    wl_output_info_t *ready[MAX_OUTPUTS];
+    int nready = 0;
+    for (int i = 0; i < b->n_outputs; i++)
+        if (b->outputs[i]->done) ready[nready++] = b->outputs[i];
+
+    screen_layout_t l;
+    backend_resolve_screens(b->requested, b->n_requested, nready, &l);
+    for (int i = 0; i < l.n_shown; i++)
+        create_overlay(b, &b->overlays[b->n_overlays++], ready[l.shown[i]]);
+    wl_display_flush(b->display);
+
+    backend_log_layout("wayland", b->requested, b->n_requested, &l);
+    if (out) *out = l;
+}
 
 /* ------------------------------------------------------------------ */
 /* Vtable                                                             */
@@ -225,10 +348,11 @@ static int wl_get_fd(void *impl) {
 }
 
 static void wl_store_last(wl_backend_t *b, const overlay_frame_t *f) {
+    char *t = dupf(f->text), *l = dupf(f->label);
     free(b->last_text);
     free(b->last_label);
-    b->last_text = dupf(f->text);
-    b->last_label = dupf(f->label);
+    b->last_text = t;
+    b->last_label = l;
     b->last = *f;
     b->last.text = b->last_text;
     b->last.label = b->last_label;
@@ -253,17 +377,29 @@ static void wl_pump(void *impl) {
     wl_display_dispatch_pending(b->display);
 }
 
+static void wl_set_screens(void *impl, const int *screens, int n,
+                           screen_layout_t *out) {
+    wl_backend_t *b = impl;
+    if (n > MAX_SCREENS) n = MAX_SCREENS;
+    memcpy(b->requested, screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, out);
+}
+
+static bool wl_tick(void *impl) {
+    wl_backend_t *b = impl;
+    if (!topo_due(&b->topo)) return false;
+    log_info(_("wayland: output configuration changed"));
+    build_overlays(b, NULL);
+    return true;
+}
+
 static void wl_destroy(void *impl) {
     wl_backend_t *b = impl;
     if (!b) return;
-    for (int i = 0; i < b->n_overlays; i++) {
-        wl_overlay_t *o = &b->overlays[i];
-        overlay_free_buffer(o);
-        if (o->layer) zwlr_layer_surface_v1_destroy(o->layer);
-        if (o->surface) wl_surface_destroy(o->surface);
-    }
-    for (int i = 0; i < b->n_outputs; i++)
-        if (b->outputs[i].output) wl_output_destroy(b->outputs[i].output);
+    destroy_overlays(b);
+    for (int i = 0; i < b->n_outputs; i++) output_free(b->outputs[i]);
+    b->n_outputs = 0;
     if (b->layer_shell) zwlr_layer_shell_v1_destroy(b->layer_shell);
     if (b->shm) wl_shm_destroy(b->shm);
     if (b->compositor) wl_compositor_destroy(b->compositor);
@@ -278,6 +414,8 @@ static const backend_vtable_t WL_VT = {
     .get_fd = wl_get_fd,
     .pump = wl_pump,
     .render = wl_render,
+    .set_screens = wl_set_screens,
+    .tick = wl_tick,
     .destroy = wl_destroy,
     .name = "wayland",
 };
@@ -301,7 +439,7 @@ overlay_backend_t *backend_create_wayland(const config_t *cfg, char **err) {
     b->registry = wl_display_get_registry(b->display);
     wl_registry_add_listener(b->registry, &REGISTRY_LISTENER, b);
     wl_display_roundtrip(b->display); /* globals */
-    wl_display_roundtrip(b->display); /* output events (mode/scale) */
+    wl_display_roundtrip(b->display); /* output events (mode/scale/done) */
 
     if (!b->compositor || !b->shm) {
         if (err) *err = dupf(_("Wayland compositor missing wl_compositor/wl_shm"));
@@ -315,47 +453,10 @@ overlay_backend_t *backend_create_wayland(const config_t *cfg, char **err) {
         return NULL;
     }
 
-    for (int i = 0; i < cfg->n_screens; i++) {
-        int idx = cfg->screens[i];
-        if (idx < 0 || idx >= b->n_outputs) {
-            fprintf(stderr, _("warning: screen index %d out of range (have %d)\n"),
-                    idx, b->n_outputs);
-            continue;
-        }
-
-        wl_overlay_t *o = &b->overlays[b->n_overlays];
-        o->owner = b;
-        o->buf_fd = -1;
-        o->w = b->outputs[idx].width;
-        o->h = b->outputs[idx].height;
-        o->min_dim = (o->w && o->h) ? (o->w < o->h ? o->w : o->h) : 0;
-
-        o->surface = wl_compositor_create_surface(b->compositor);
-        o->layer = zwlr_layer_shell_v1_get_layer_surface(
-            b->layer_shell, o->surface, b->outputs[idx].output,
-            ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "overlay-timer");
-        zwlr_layer_surface_v1_add_listener(o->layer, &LS_LISTENER, o);
-
-        /* Anchor to all edges => covers the entire output. */
-        zwlr_layer_surface_v1_set_anchor(
-            o->layer,
-            ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-            ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-            ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-            ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
-        zwlr_layer_surface_v1_set_size(o->layer, 0, 0);
-        zwlr_layer_surface_v1_set_exclusive_zone(o->layer, -1);
-        zwlr_layer_surface_v1_set_keyboard_interactivity(
-            o->layer, ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
-
-        /* Empty input region => click-through. */
-        struct wl_region *empty = wl_compositor_create_region(b->compositor);
-        wl_surface_set_input_region(o->surface, empty);
-        wl_region_destroy(empty);
-
-        wl_surface_commit(o->surface); /* initial commit without buffer */
-        b->n_overlays++;
-    }
+    int n = cfg->n_screens < MAX_SCREENS ? cfg->n_screens : MAX_SCREENS;
+    memcpy(b->requested, cfg->screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, NULL);
 
     if (b->n_overlays == 0) {
         if (err) *err = dupf(_("no valid screen to display on"));
@@ -364,5 +465,14 @@ overlay_backend_t *backend_create_wayland(const config_t *cfg, char **err) {
     }
 
     wl_display_roundtrip(b->display); /* receive initial configure */
-    return backend_wrap(&WL_VT, b);
+    b->ready = true;
+    /* Startup events must not trigger a rebuild. */
+    b->topo.pending = false;
+
+    overlay_backend_t *w = backend_wrap(&WL_VT, b);
+    if (!w) {
+        wl_destroy(b);
+        if (err) *err = dupf("out of memory");
+    }
+    return w;
 }

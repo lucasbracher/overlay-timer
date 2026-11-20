@@ -8,6 +8,12 @@
  * BGRA, which is exactly what UpdateLayeredWindow expects, so no WM_PAINT
  * handling is needed.
  *
+ * Monitor changes: WM_DISPLAYCHANGE / WM_SETTINGCHANGE(SPI_SETWORKAREA) /
+ * WM_DPICHANGED mark the topology dirty and tick() rebuilds the windows.
+ * Those messages are broadcast to top-level windows only, and there may be
+ * no overlay window at all (no monitor), so a hidden, never-shown top-level
+ * helper window lives for the whole backend lifetime to receive them.
+ *
  * Window messages have no pollable fd, so get_fd() returns -1 and the daemon
  * calls pump() on every loop iteration (at least once per second).
  */
@@ -22,9 +28,14 @@
 #include "backend_internal.h"
 #include "i18n.h"
 #include "render.h"
+#include "util.h"
 
 #define WINDOW_CLASS L"OverlayTimerWindow"
 #define OT_MAX_MONITORS 32
+
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
+#endif
 
 typedef struct {
     HWND hwnd;
@@ -35,9 +46,15 @@ typedef struct {
 } win_overlay_t;
 
 typedef struct {
-    win_overlay_t *overlays;
+    win_overlay_t overlays[MAX_SCREENS];
     int n_overlays;
     HINSTANCE hinst;
+    HWND helper;         /* hidden top-level window: receives broadcasts */
+    bool class_registered;
+
+    int requested[MAX_SCREENS];
+    int n_requested;
+    topo_watch_t topo;
 } win_backend_t;
 
 /* Monitor list, primary first (index 0 = main screen, like the others). */
@@ -67,6 +84,49 @@ static BOOL CALLBACK collect_monitor(HMONITOR mon, HDC hdc, LPRECT rc,
     }
     list->n++;
     return TRUE;
+}
+
+/* All windows of the class share this procedure; the backend pointer comes
+ * from CreateWindowExW's lpParam. */
+static LRESULT CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wp,
+                                        LPARAM lp) {
+    if (msg == WM_NCCREATE) {
+        CREATESTRUCTW *cs = (CREATESTRUCTW *)lp;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)cs->lpCreateParams);
+    }
+    win_backend_t *b = (win_backend_t *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+    switch (msg) {
+    case WM_DISPLAYCHANGE:
+        if (b) topo_mark(&b->topo);
+        return 0;
+    case WM_DPICHANGED:
+        /* Do not let Windows resize us: the rebuild recomputes everything. */
+        if (b) topo_mark(&b->topo);
+        return 0;
+    case WM_SETTINGCHANGE:
+        if (b && wp == SPI_SETWORKAREA) topo_mark(&b->topo);
+        break;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+/* Per-monitor DPI awareness (v2) when available, so every monitor's work
+ * area is reported in real pixels even with mixed scale factors; falls back
+ * to system DPI awareness on older Windows. Looked up dynamically so the
+ * binary still runs where the API does not exist. */
+static void set_dpi_awareness(void) {
+    typedef BOOL (WINAPI *set_ctx_fn)(HANDLE);
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    set_ctx_fn fn = NULL;
+    if (user32) {
+        FARPROC p = GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        memcpy(&fn, &p, sizeof fn);
+    }
+    /* (HANDLE)-4 == DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 */
+    if (!fn || !fn((HANDLE)(INT_PTR)-4))
+        SetProcessDPIAware();
 }
 
 static int win_get_fd(void *impl) {
@@ -100,29 +160,19 @@ static void win_render(void *impl, const overlay_frame_t *frame) {
     }
 }
 
-static void win_destroy(void *impl) {
-    win_backend_t *b = impl;
-    if (!b) return;
+static void destroy_overlays(win_backend_t *b) {
     for (int i = 0; i < b->n_overlays; i++) {
         win_overlay_t *o = &b->overlays[i];
         if (o->cr) cairo_destroy(o->cr);
         if (o->surface) cairo_surface_destroy(o->surface);
         if (o->hwnd) DestroyWindow(o->hwnd);
+        memset(o, 0, sizeof *o);
     }
-    free(b->overlays);
-    UnregisterClassW(WINDOW_CLASS, b->hinst);
-    free(b);
+    b->n_overlays = 0;
 }
 
-static const backend_vtable_t WIN32_VT = {
-    .get_fd = win_get_fd,
-    .pump = win_pump,
-    .render = win_render,
-    .destroy = win_destroy,
-    .name = "win32",
-};
-
-/* Creates the overlay window for one monitor work area. */
+/* Creates the overlay window for one monitor work area. On failure the
+ * partially created resources stay in `o` for destroy_overlays(). */
 static bool create_overlay(win_backend_t *b, win_overlay_t *o, RECT r) {
     o->x = r.left;
     o->y = r.top;
@@ -137,7 +187,7 @@ static bool create_overlay(win_backend_t *b, win_overlay_t *o, RECT r) {
         | WS_EX_TOOLWINDOW  /* not in taskbar / Alt+Tab */
         | WS_EX_NOACTIVATE, /* never takes focus */
         WINDOW_CLASS, L"overlay-timer", WS_POPUP,
-        o->x, o->y, o->w, o->h, NULL, NULL, b->hinst, NULL);
+        o->x, o->y, o->w, o->h, NULL, NULL, b->hinst, b);
     if (!o->hwnd) return false;
 
     o->surface = cairo_win32_surface_create_with_dib(CAIRO_FORMAT_ARGB32,
@@ -149,19 +199,86 @@ static bool create_overlay(win_backend_t *b, win_overlay_t *o, RECT r) {
     return true;
 }
 
+/* Throws away the overlays and recreates them on the current monitors. */
+static void build_overlays(win_backend_t *b, screen_layout_t *out) {
+    destroy_overlays(b);
+
+    monitor_list_t mons;
+    memset(&mons, 0, sizeof mons);
+    EnumDisplayMonitors(NULL, NULL, collect_monitor, (LPARAM)&mons);
+
+    screen_layout_t l;
+    backend_resolve_screens(b->requested, b->n_requested, mons.n, &l);
+    for (int i = 0; i < l.n_shown; i++) {
+        win_overlay_t *o = &b->overlays[b->n_overlays];
+        b->n_overlays++;
+        if (!create_overlay(b, o, mons.work[l.shown[i]])) {
+            /* Skip this monitor, keep the others. */
+            log_error(_("win32: cannot create overlay window"));
+            if (o->cr) cairo_destroy(o->cr);
+            if (o->surface) cairo_surface_destroy(o->surface);
+            if (o->hwnd) DestroyWindow(o->hwnd);
+            memset(o, 0, sizeof *o);
+            b->n_overlays--;
+        }
+    }
+
+    backend_log_layout("win32", b->requested, b->n_requested, &l);
+    if (out) {
+        *out = l;
+        out->n_shown = b->n_overlays;
+    }
+}
+
+static void win_set_screens(void *impl, const int *screens, int n,
+                            screen_layout_t *out) {
+    win_backend_t *b = impl;
+    if (n > MAX_SCREENS) n = MAX_SCREENS;
+    memcpy(b->requested, screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, out);
+}
+
+static bool win_tick(void *impl) {
+    win_backend_t *b = impl;
+    if (!topo_due(&b->topo)) return false;
+    log_info(_("win32: monitor configuration changed"));
+    build_overlays(b, NULL);
+    return true;
+}
+
+static void win_destroy(void *impl) {
+    win_backend_t *b = impl;
+    if (!b) return;
+    destroy_overlays(b);
+    if (b->helper) DestroyWindow(b->helper);
+    if (b->class_registered) UnregisterClassW(WINDOW_CLASS, b->hinst);
+    free(b);
+}
+
+static const backend_vtable_t WIN32_VT = {
+    .get_fd = win_get_fd,
+    .pump = win_pump,
+    .render = win_render,
+    .set_screens = win_set_screens,
+    .tick = win_tick,
+    .destroy = win_destroy,
+    .name = "win32",
+};
+
 overlay_backend_t *backend_create_win32(const config_t *cfg, char **err) {
     win_backend_t *b = calloc(1, sizeof *b);
     if (!b) { if (err) *err = dupf("out of memory"); return NULL; }
 
     /* Work in physical pixels (the text size is a % of the screen). */
-    SetProcessDPIAware();
+    set_dpi_awareness();
 
     b->hinst = GetModuleHandleW(NULL);
 
     WNDCLASSEXW wc;
     memset(&wc, 0, sizeof wc);
     wc.cbSize = sizeof wc;
-    wc.lpfnWndProc = DefWindowProcW; /* no input to handle */
+    wc.lpfnWndProc = overlay_wndproc;
     wc.hInstance = b->hinst;
     wc.lpszClassName = WINDOW_CLASS;
     if (!RegisterClassExW(&wc) &&
@@ -170,35 +287,22 @@ overlay_backend_t *backend_create_win32(const config_t *cfg, char **err) {
         free(b);
         return NULL;
     }
+    b->class_registered = true;
 
-    monitor_list_t mons;
-    memset(&mons, 0, sizeof mons);
-    EnumDisplayMonitors(NULL, NULL, collect_monitor, (LPARAM)&mons);
+    /* Hidden top-level window (never shown): receives WM_DISPLAYCHANGE even
+     * when there is no overlay. Not HWND_MESSAGE: message-only windows do
+     * not get broadcasts. */
+    b->helper = CreateWindowExW(WS_EX_TOOLWINDOW, WINDOW_CLASS,
+                                L"overlay-timer-helper", WS_POPUP,
+                                0, 0, 0, 0, NULL, NULL, b->hinst, b);
+    if (!b->helper)
+        log_warn(_("win32: cannot create helper window; monitor changes "
+                   "may not be detected"));
 
-    b->overlays = calloc(cfg->n_screens > 0 ? (size_t)cfg->n_screens : 1,
-                         sizeof(win_overlay_t));
-    if (!b->overlays) {
-        if (err) *err = dupf("out of memory");
-        win_destroy(b);
-        return NULL;
-    }
-
-    for (int i = 0; i < cfg->n_screens; i++) {
-        int idx = cfg->screens[i];
-        if (idx < 0 || idx >= mons.n) {
-            fprintf(stderr,
-                    _("warning: screen index %d out of range (have %d)\n"),
-                    idx, mons.n);
-            continue;
-        }
-        win_overlay_t *o = &b->overlays[b->n_overlays];
-        b->n_overlays++; /* count it so win_destroy cleans up on failure */
-        if (!create_overlay(b, o, mons.work[idx])) {
-            if (err) *err = dupf(_("cannot create overlay window"));
-            win_destroy(b);
-            return NULL;
-        }
-    }
+    int n = cfg->n_screens < MAX_SCREENS ? cfg->n_screens : MAX_SCREENS;
+    memcpy(b->requested, cfg->screens, sizeof(int) * (size_t)n);
+    b->n_requested = n;
+    build_overlays(b, NULL);
 
     if (b->n_overlays == 0) {
         if (err) *err = dupf(_("no valid screen to display on"));

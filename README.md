@@ -89,6 +89,7 @@ overlay-timer --pomodoro 4        # 4 pomodoros
 overlay-timer --pomodoro 4 --sync # 4 pomodoros aligned with :00 and :30
 overlay-timer --pause             # pause the running timer
 overlay-timer --corner tl         # move to the top-left corner
+overlay-timer --screen 0,1        # show on screens 0 and 1 (works while running)
 overlay-timer --stop              # stop
 ```
 
@@ -115,6 +116,26 @@ options.
   Config in `%APPDATA%\overlay-timer\`, log and control socket in
   `%LOCALAPPDATA%\overlay-timer\`. Font family names differ from Linux
   (e.g. `Consolas`).
+
+### Multiple screens and hot-plug
+
+`--screen` takes a list of monitor indices (in the order the window system
+lists them; 0 is the primary monitor on X11/macOS/Windows and the first
+advertised output on Wayland). It can be changed while the timer runs; the
+reply says where the overlay actually is, e.g.
+`OK 1 applied; showing on screen(s) 0 (1 monitor(s)); unavailable: 1`.
+
+Monitors are watched while the timer runs (RandR events on X11, output
+add/remove on Wayland, `WM_DISPLAYCHANGE` on Windows, CoreGraphics display
+reconfiguration on macOS). When a monitor goes away, its overlay is removed
+instead of being moved onto (and stacked over) another screen; when it comes
+back, the overlay is recreated on it. If none of the requested screens exist,
+the overlay falls back to screen 0; with no monitor at all the daemon keeps
+running and waits. Indices are positional, so after a reconnect a monitor
+may get a different index (on Wayland, a re-added output goes to the end).
+
+The window system itself (`--x11`/`--wayland`) cannot be changed while a
+timer is running.
 
 On Linux the backend is autodetected from
 `XDG_SESSION_TYPE`/`WAYLAND_DISPLAY`/`DISPLAY`, or can be forced with

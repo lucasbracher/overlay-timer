@@ -83,6 +83,10 @@ Corner: top\-left, top\-right, bottom\-left, bottom\-right.
 .TP
 .BR \-\-screen " " \fIIDX\fR[,\fIIDX\fR...]
 Screen index(es). The same timer is replicated on each chosen screen.
+Indices follow the window system's monitor order (0 is the primary monitor
+on X11, macOS and Windows; the first advertised output on Wayland).
+Can be changed while the timer is running. Unavailable indices are skipped;
+if none is available the overlay falls back to screen 0.
 .SS Pomodoro
 .TP
 .BR \-\-pomodoro\-minutes " " \fIM\fR
@@ -158,6 +162,16 @@ reconfigures itself. Attempting to start a new timer
 .RB ( \-t " or " \-\-pomodoro )
 while one is running is an error: stop the current one first with
 .BR "overlay\-timer \-\-stop" .
+The window system
+.RB ( \-\-x11 ", " \-\-wayland )
+cannot be changed while running.
+.PP
+Monitors are watched while the timer runs. When a monitor is disconnected
+its overlay is removed (rather than moved onto another screen); when it is
+reconnected the overlay is recreated on it, as long as its index is still in
+the
+.B \-\-screen
+list. With no monitor at all the daemon keeps running and waits for one.
 .SH CONFIGURATION
 Settings are read from an INI file, by default
 .IR ~/.config/overlay\-timer/config.ini
@@ -240,6 +254,9 @@ Pause and later resume the running timer:
 .TP
 Move the overlay to the top\-left corner and save it:
 .B overlay\-timer \-\-corner tl \-\-save
+.TP
+Show the running timer on screens 0 and 1:
+.B overlay\-timer \-\-screen 0,1
 .TP
 Stop the timer:
 .B overlay\-timer \-\-stop
